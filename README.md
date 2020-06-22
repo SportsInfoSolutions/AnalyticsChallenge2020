@@ -2,9 +2,9 @@
 
 Sports Info Solutions (SIS) is hosting a Football Analytics Challenge to raise money for the United Negro College Fund.  All donations are appreciated and go to charity.
 
-Learn more about the competition here.
+Learn more about the competition [here](http://www.sportsinfosolutions.com/sports-info-solutions-to-host-football-analytics-challenge-to-raise-money-for-the-united-negro-college-fund/).
 
-Visit this link to register for the Football Analytics Challenge; a minimum $1 donation is required for entry.
+Visit this [link](https://docs.google.com/forms/d/e/1FAIpQLSf_dRn9aciVg35AMFHj3VgRt8N6v8RqjHV20XVuHsDf6GkzgQ/viewform) to register for the Football Analytics Challenge; a minimum $1 donation is required for entry.
 
 ## Sports Info Solutions Football Analytics Challenge Rules
  
