@@ -6,30 +6,30 @@ Learn more about the competition here.
 
 Visit this link to register for the Football Analytics Challenge; a minimum $1 donation is required for entry.
 
-# Sports Info Solutions Football Analytics Challenge Rules
+## Sports Info Solutions Football Analytics Challenge Rules
  
-# Collaborating is allowed, one submission per participant or team
+### Collaborating is allowed, one submission per participant or team
 Participants can collaborate and form teams of up to five members to create a joint submission. Each team or individual participant is limited to submitting one official entry.
  
-# Work must be submitted through competition platform
+### Work must be submitted through competition platform
 After registering, participants will retrieve contest dataset through GitHub and must submit their work through the same GitHub contest platform to be considered eligible.
  
-# Data restrictions
+### Data restrictions
 Participants authorized to use any additional data that is both free and publicly available. Participants must identify and cite data that goes beyond supplied contest data.
  
-# Competition Timeline
+### Competition Timeline
 Start Date: June 24, 2020
 Entry Deadline (Final Submission Deadline): July 19, 2020 11:59 PM ET
 Preliminary Judging Results: July 24, 2020
 Final Judging Panel: July 29, 2020 (live video call)
  
-# Submission due date
+### Submission due date
 Submissions are due by 11:59pm ET on Sunday, July 19. There is no limit to the number of submissions by each participant throughout the entry period, but the final submission will be considered the official work to be judged.
  
-# Judging
+### Judging
 All eligible entrants will have their work reviewed in a preliminary judging round conducted by the Sports Info Solutions Research & Development Department. Each submission will be judged by the evaluation criteria below. Three finalists will be selected to advance to the final judging round. Finalists must be available to participate in the live judging round on July 29, 2020 and must have the means available to participate in a live Zoom call.
  
-# Evaluation Criteria
+### Evaluation Criteria
 Your task is to answer the following three questions using the data provided as a basis for your conclusions.
 
 1.	Which is the most valuable defensive line position? You can define the positions however you like.
@@ -51,20 +51,20 @@ For example: How are you defining the different positions you’re considering? 
 
 • Other Data Sources — We are in a golden age of football analytics. Feel free to use other free, publicly available resources to aid in your analysis. You must provide details on any resources that you used outside the provided data, and it must be clear from your discussion what that data was used for. Of course, this competition is centered around the data provided, so don’t lean too heavily on other resources for your key conclusions.
  
-# Notification
+### Notification
 The finalists will be notified of their progress via email by July 25th, 2020. If a finalist does not respond to the notification attempt within three (3) days from the first notification attempt, then an alternate finalist will be selected from among the eligible entrant pool.
  
-# Eligibility
+### Eligibility
 To be deemed eligible, participants must submit a monetary donation of no less than $1 to the affiliated donation collection on GoFundMe and must register via the competition website. There are no geographic restrictions, but work must be submitted in English.
 Full-time employees of Sports Info Solutions are not eligible to participate.
  
-# Prizes
+### Prizes
 This is a charity event with all proceeds donated to the United Negro College Fund. Finalists will receive the unique opportunity to present their work to a panel of industry professionals. Finalist presentations may be promoted via SIS social media and blog. Winner will be invited to appear on the Off The Charts podcast with Matt Manocherian and Aaron Schatz. 
  
-# Data usage rights
+### Data usage rights
 The contest dataset provided by Sports Info Solutions shall not be used for any purposes beyond this competition. Participants may not distribute, sell, transmit, brand, publish, copy, sublicense, reproduce, or transfer any of the contest data at any time during or after the competition without the prior written permission of SIS.
  
-# ENTRY IN THIS COMPETITION CONSTITUTES YOUR ACCEPTANCE OF THESE OFFICIAL COMPETITION RULES.
+### ENTRY IN THIS COMPETITION CONSTITUTES YOUR ACCEPTANCE OF THESE OFFICIAL COMPETITION RULES.
 This competition is a skills-based competition to promote and further the field of data science and raise money for charity. You submit a monetary donation of no less than $1 to the affiliated donation collection and must register via the competition website to enter. Your competition submission must conform to the requirements stated in this document. Your submission will be scored based on the evaluation criteria provided in this document.
 
 Questions? contact challenge@sportsinfosolutions.com
