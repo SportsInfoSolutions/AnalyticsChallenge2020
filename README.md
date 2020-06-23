@@ -59,7 +59,7 @@ To be deemed eligible, participants must submit a monetary donation of no less t
 Full-time employees of Sports Info Solutions are not eligible to participate.
  
 ### Prizes
-This is a charity event with all proceeds donated to the United Negro College Fund. Finalists will receive the unique opportunity to present their work to a panel of industry professionals. Finalist presentations may be promoted via SIS social media and blog. Winner will be invited to appear on the Off The Charts podcast with Matt Manocherian and Aaron Schatz. 
+This is a charity event with all proceeds donated to the United Negro College Fund. Finalists will receive the unique opportunity to present their work to a panel of industry professionals. Finalist presentations may be promoted via SIS social media and blog. Winner will be invited to appear on the Off The Charts podcast with Matt Manocherian and Aaron Schatz. Winner will also receive a free one-year subscription to the SIS DataHub Pro.
  
 ### Data usage rights
 The contest dataset provided by Sports Info Solutions shall not be used for any purposes beyond this competition. Participants may not distribute, sell, transmit, brand, publish, copy, sublicense, reproduce, or transfer any of the contest data at any time during or after the competition without the prior written permission of SIS.
