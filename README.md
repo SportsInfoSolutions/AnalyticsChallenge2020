@@ -6,6 +6,8 @@ Learn more about the competition [here](http://www.sportsinfosolutions.com/sport
 
 Visit this [link](https://docs.google.com/forms/d/e/1FAIpQLSf_dRn9aciVg35AMFHj3VgRt8N6v8RqjHV20XVuHsDf6GkzgQ/viewform) to register for the Football Analytics Challenge; a minimum $1 donation is required for entry.
 
+To familiarize yourself with the data that you will be working with, check out this [article](https://sportsinfosolutionsblog.com/2020/06/24/a-quick-introduction-to-our-analytics-challenge-data-set/).
+
 ## Sports Info Solutions Football Analytics Challenge Rules
  
 ### Collaborating is allowed, one submission per participant or team
