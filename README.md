@@ -8,6 +8,8 @@ Visit this [link](https://docs.google.com/forms/d/e/1FAIpQLSf_dRn9aciVg35AMFHj3V
 
 To familiarize yourself with the data that you will be working with, check out this [article](https://sportsinfosolutionsblog.com/2020/06/24/a-quick-introduction-to-our-analytics-challenge-data-set/).
 
+To download the data: navigate to the Data folder, clock on AnalyticsChallenge2020Data.csv, simultaneously press ALT + Left Click on 'View Raw' or click 'Download'.
+
 ## Sports Info Solutions Football Analytics Challenge Rules
  
 ### Collaborating is allowed, one submission per participant or team
