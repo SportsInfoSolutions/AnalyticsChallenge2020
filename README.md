@@ -24,7 +24,7 @@ Preliminary Judging Results: July 24, 2020
 Final Judging Panel: July 29, 2020 (live video call)
  
 ### Submission due date
-Submissions are due by 11:59pm ET on Sunday, July 19. There is no limit to the number of submissions by each participant throughout the entry period, but the final submission will be considered the official work to be judged.
+Submissions are due by 11:59pm ET on Sunday, July 19. All submissions are final.
  
 ### Judging
 All eligible entrants will have their work reviewed in a preliminary judging round conducted by the Sports Info Solutions Research & Development Department. Each submission will be judged by the evaluation criteria below. Three finalists will be selected to advance to the final judging round. Finalists must be available to participate in the live judging round on July 29, 2020 and must have the means available to participate in a live Zoom call.
