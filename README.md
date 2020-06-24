@@ -63,6 +63,10 @@ This is a charity event with all proceeds donated to the United Negro College Fu
  
 ### Data usage rights
 The contest dataset provided by Sports Info Solutions shall not be used for any purposes beyond this competition. Participants may not distribute, sell, transmit, brand, publish, copy, sublicense, reproduce, or transfer any of the contest data at any time during or after the competition without the prior written permission of SIS.
+
+### Intellectual Property
+Participants retain the rights to their IP, including publishing the results of their research on any platform they wish.
+
  
 ### ENTRY IN THIS COMPETITION CONSTITUTES YOUR ACCEPTANCE OF THESE OFFICIAL COMPETITION RULES.
 This competition is a skills-based competition to promote and further the field of data science and raise money for charity. You submit a monetary donation of no less than $1 to the affiliated donation collection and must register via the competition website to enter. Your competition submission must conform to the requirements stated in this document. Your submission will be scored based on the evaluation criteria provided in this document.
