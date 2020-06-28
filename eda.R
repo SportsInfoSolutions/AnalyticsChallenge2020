@@ -47,8 +47,20 @@ data %>%
   filter(str_detect(PlayDesc, "left") | str_detect(PlayDesc, "right")) %>%
   unique()
 
+# Plays with at least one player in X technique
 
-
+data %>%
+  select(GameID, EventID, TechniqueName, EventType) %>%
+  pivot_wider(names_from = TechniqueName, values_from = TechniqueName, names_prefix = "Tech_",
+              values_fn = list(TechniqueName = length),
+              values_fill = list(TechniqueName = 0)) %>%
+  pivot_longer(starts_with("Tech_"), names_to = "TechniqueName", values_to = "Used") %>%
+  mutate(Used = ifelse(Used > 0, 1, 0)) %>%
+  ggplot(aes(x = TechniqueName, y = Used, fill = EventType)) +
+  geom_bar(stat = "identity",
+           #position = "fill"
+           ) +
+  theme_bw()
 
 
 
