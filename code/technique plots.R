@@ -81,7 +81,7 @@ brand_plot(p, save_name = 'plots/tech_heatmap.png', data_home = 'Data: SIS')
 
 
 ### 
-basic_tech_ord <- c(1,2,'2i',3,4,'4i',5:7,9)
+basic_tech_ord <- c(1,'2i',2,3,'4i',4,5,7,6,9)
 tech_ord_LR <- c(paste0('L ',rev(basic_tech_ord)),'NULL 0',paste0('R ',basic_tech_ord))
 tech_ord <- c(paste0('Same ',rev(basic_tech_ord)),'Same 0',paste0('Opposite ',basic_tech_ord))
 
