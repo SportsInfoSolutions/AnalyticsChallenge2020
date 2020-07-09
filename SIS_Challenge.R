@@ -91,3 +91,4 @@ ggplot(data = tech1, aes(x = OffensiveYardage)) +
   geom_density(data = tech1out, aes(fill = "0/1 Tech not-present", alpha = 0.005)) + 
   scale_fill_manual(values = c("red","blue"))
 
+
