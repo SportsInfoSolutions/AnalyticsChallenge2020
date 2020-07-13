@@ -1,0 +1,783 @@
+---
+title: "Sports Info Solutions - What is the Most Important Position on an NFL Defensive Line?"
+author: "Jeff Henderson"
+date: "7/9/2020"
+output: 
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    fig_width: 7
+    fig_height: 4
+    css: settings.css
+    prettydoc::html_pretty:
+    theme: lumen
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **Introduction**
+
+This analysis attempts to answer which position on an NFL defensive line is the most important. The data considered includes play-by-play data for all plays between weeks 9 and 17 of the 2019 NFL season. This data includes observations for each defensive lineman used on each play, providing a basis for parsing out which techniques might be more advantageous to NFL defenses and in what situations.
+
+
+## **Method**
+
+NFL defenses are designed to operate as a unit. Eleven players all play a role that seldom results in the best performer of the play earning a boxscore reward. A defensive tackle might obtain the cheers of a crowd after powering through his man inside for the sack, but what about the linebacker blitzing and taking the running back out of the protection, or the defensive end requiring two offensive lineman to neutralize? The fact is, when it comes to defensive success, it's more often than not a team effort. Everyone has to do their job otherwise NFL offenses are going to identify and attack their weakest link. 
+
+Understanding the necessary cohesiveness required of NFL defenses, I approached answering which position on an NFL defensive line is more important by looking at team success vs. individual success. Using a well established team metric (EPA), I simply categorized all possible spots a defender can lineup by combining the side of field (left or right) with the placement technique and computed the average defensive EPA (DEPA) gained on all plays in which each technique was used. 
+
+While this approach is a bit simplistic, I feel strongly that it reveals some signal as to which techniques put NFL defenses in a position to score more points than their opponents. 
+
+## **1. Which is the most valuable defensive line position?** 
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=FALSE}
+library(tidyverse)
+library(gt)
+df <- read_csv("https://github.com/SportsInfoSolutions/AnalyticsChallenge2020/raw/master/Data/AnalyticsChallenge2020Data.csv")
+
+
+df <- df %>%
+  mutate(Technique = paste0(SideOfBall, TechniqueName)) %>%
+  mutate(Technique = str_replace(Technique, "NULL", "")) %>%
+  mutate(LinearPosition = case_when(
+    Technique == "LOutside" ~ 1,
+    Technique == "L10" ~ 2,
+    Technique == "L9" ~ 3,
+    Technique == "L7" ~ 4,
+    Technique == "L6" ~ 5,
+    Technique == "L5" ~ 6,
+    Technique == "L4" ~ 7,
+    Technique == "L4i" ~ 8,
+    Technique == "L3" ~ 9,
+    Technique == "L2" ~ 10,
+    Technique == "L2i" ~ 11,
+    Technique == "L1" ~ 12,
+    Technique == "0" ~ 13,
+    Technique == "Off Ball" ~ 13,
+    Technique == "R1" ~ 14,
+    Technique == "R1.5" ~ 15,
+    Technique == "R1" ~ 16,
+    Technique == "R2" ~ 17,
+    Technique == "R3" ~ 18,
+    Technique == "R4i" ~ 19,
+    Technique == "R4" ~ 20,
+    Technique == "R5" ~ 21,
+    Technique == "R6" ~ 22,
+    Technique == "R7" ~ 23,
+    Technique == "R9" ~ 24,
+    Technique == "R10" ~ 25,
+    Technique == "ROutside" ~ 26 
+  )) %>%
+  mutate(yardline = if_else(SideOfField == "Own" & StartYard != 50, StartYard + 50, StartYard)) %>%
+  mutate(DEPA = EPA * (-1))
+```
+
+The following table reveals the techniques which resulted in the greatest DEPA for NFL defenses from this data sample. Notice the color scale illustrating the disconnect between efficiency and usage. There appears to be a market inefficiency at play.
+
+```{r, echo=FALSE, message=FALSE, fig.align='left'}
+
+df %>%
+  group_by(Technique) %>%
+  summarise(DEPA = round(mean(DEPA, na.rm = T),2), Snaps = n()) %>%
+  arrange(desc(DEPA)) %>%
+  gt() %>%
+  data_color(
+    columns = vars(Snaps),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+  data_color(
+    columns = vars(DEPA),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "bottom",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_column_labels(
+        columns = gt::everything()
+      )
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "left",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_body(
+        columns = vars(DEPA)
+      )
+    )
+  ) %>%
+  tab_header(
+    title = md("**Defensive EPA (DEPA) with Technique Utilized**"),
+    subtitle = "2019 Weeks 9 - 17"
+  )
+```
+
+Based on this sample of data, the **4i technique proved to be the most impactful position on the defensive line**. The right-side 4i (R4i) was lined up 1,857 times during the sample of data and netted defenses an average of .09 points over opposing offenses as a result. In 1,944 snaps, the left-side 4i was next most successful with .07 expected points added. Despite defensive success with this position employed, NFL defenses used the 4i only 5 percent of snaps during the second-half of 2019. 
+
+### **Defining D-Line Positions**
+
+I'm focusing my definitions of defensive lineman by those that have proved to be most successful. 
+
+* *4i*
+* *0 (Nose Tackle)*
+* *Left-side 2/2i*
+* *Right-Outside* 
+* *4*
+
+I'm not claiming these are the only techniques that should ever be played, but for purposes of this project, I'll focus on these five positions with regard to this analysis.
+
+## **2. What is the nature of the distribution of talent between the defensive line positions?**
+
+### **4i**
+
+To get a sense for the distribution of talent at each position, DEPA was again used on the player level and the team level. Below is a list of all players from this data set that took at least 50 snaps at the 4i and maintained a better than average DEPA (average DEPA of sample: .03):
+
+```{r, echo=FALSE, message=FALSE}
+df %>%
+  filter(TechniqueName == "4i") %>%
+  group_by(Name) %>%
+  summarise(Team = first(DefensiveTeam), DEPA = round(mean(DEPA),2), Snaps = n()) %>%
+  filter(Snaps > 49,
+         DEPA > .03) %>%
+  arrange(desc(DEPA)) %>%
+  gt() %>%
+  data_color(
+    columns = vars(Snaps),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+  data_color(
+    columns = vars(DEPA),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "bottom",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_column_labels(
+        columns = gt::everything()
+      )
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "left",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_body(
+        columns = vars(DEPA)
+      )
+    )
+  ) %>%
+  tab_header(
+    title = md("**Players with Above AVG Defensive EPA (DEPA) at 4i Technique**"),
+    subtitle = "2019 Weeks 9 - 17"
+  )
+```
+
+Ndamukong Suh stands heads and tails above the rest in terms of production out of the 4i. But while there are few individual players lining up in the 4i, teams on the whole perform admirably using this technique:
+
+```{r, echo=FALSE, message=FALSE}
+
+df %>%
+  filter(TechniqueName == "4i") %>%
+  group_by(DefensiveTeam) %>%
+  summarise(Team = first(DefensiveTeam), 
+                  DEPA = mean(DEPA), snaps = n()) %>%
+  filter(snaps > 49) %>%
+  arrange(DEPA) %>%
+  ggplot(aes(reorder(DefensiveTeam, -DEPA), DEPA, fill = DEPA))+
+  geom_col() +
+  theme_bw()+
+  scale_fill_gradient2(low = "tomato", high = "springgreen4", midpoint =0) +
+  ggtitle("4i") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))+
+  theme(legend.position = "none") +
+  labs(title = "Team Average DEPA by All Plays Using 4i Technique",
+       subtitle = "Weeks 9 - 17, 2019",
+       x = "",
+       y = "DEPA")+
+  theme(plot.title = element_text(hjust = .5),
+        plot.subtitle = element_text(hjust = .5))
+
+```
+
+Of all NFL teams utilizing the 4i at least 50 times in this data set, only seven failed to hold opposing offenses from a positive EPA. These defensive units include the following teams and rank (Pro Football Reference):
+
+* **4th ranked Bears** 
+* **19th ranked Texans**
+* **26th ranked Lions**
+* **27th ranked Redskins**
+* **28th ranked Cardinals**
+* **30th ranked Giants**
+* **31st ranked Panthers**
+
+
+The highly ranked Bears make an anomalous appearance on this list, however it should be noted their defensive success ended abruptly around the start of the second half of hte season in which this data focues on. With that understood, the correlation between poor defense and poor 4i technique representation suggests some connection. 
+
+### **0 (Nose-Tackle)**
+
+```{r, echo=FALSE, message=FALSE}
+df %>%
+  filter(TechniqueName == "0") %>%
+  group_by(Name) %>%
+  summarise(Team = first(DefensiveTeam), DEPA = round(mean(DEPA),2), Snaps = n()) %>%
+  filter(Snaps > 49,
+         DEPA > .03) %>%
+  arrange(desc(DEPA)) %>%
+  gt() %>%
+  data_color(
+    columns = vars(Snaps),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+  data_color(
+    columns = vars(DEPA),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "bottom",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_column_labels(
+        columns = gt::everything()
+      )
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "left",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_body(
+        columns = vars(DEPA)
+      )
+    )
+  ) %>%
+  tab_header(
+    title = md("**Players with Above AVG Defensive EPA (DEPA) at 0 Technique**"),
+    subtitle = "2019 Weeks 9 - 17"
+  )
+```
+Again, eight players qualified for the 50-plus snap count and above average DEPA for the nose tackle 0 technique. But at the team level (below), 15 squads were able to maintain a positive DEPA while lining up a big man dead center:
+
+```{r, echo=FALSE, message=FALSE}
+
+df %>%
+  filter(TechniqueName == "0") %>%
+  group_by(DefensiveTeam) %>%
+  summarise(Team = first(DefensiveTeam), 
+                  DEPA = mean(DEPA), snaps = n()) %>%
+  filter(snaps > 49) %>%
+  arrange(DEPA) %>%
+  ggplot(aes(reorder(DefensiveTeam, -DEPA), DEPA, fill = DEPA))+
+  geom_col() +
+  theme_bw()+
+  scale_fill_gradient2(low = "tomato", high = "springgreen4", midpoint =0) +
+  ggtitle("4i") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))+
+  theme(legend.position = "none") +
+  labs(title = "Team Average DEPA by All Plays Using 0 Technique",
+       subtitle = "Weeks 9 - 17, 2019",
+       x = "",
+       y = "DEPA")+
+  theme(plot.title = element_text(hjust = .5),
+        plot.subtitle = element_text(hjust = .5))
+
+```
+
+### **L2 / L2i**
+
+For the L2 or L2i technique, six players with at least 50 snaps at the position maintained a better than average DEPA during those plays.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df %>%
+  filter(Technique == "L2" |
+         Technique == "L2i") %>%
+  group_by(Name) %>%
+  summarise(Team = first(DefensiveTeam), DEPA = round(mean(DEPA),2), Snaps = n()) %>%
+  filter(Snaps > 49,
+         DEPA > .03) %>%
+  arrange(desc(DEPA)) %>%
+  gt() %>%
+  data_color(
+    columns = vars(Snaps),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+  data_color(
+    columns = vars(DEPA),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "bottom",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_column_labels(
+        columns = gt::everything()
+      )
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "left",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_body(
+        columns = vars(DEPA)
+      )
+    )
+  ) %>%
+  tab_header(
+    title = md("**Players with Above AVG Defensive EPA (DEPA) at L2 or L2i Technique**"),
+    subtitle = "2019 Weeks 9 - 17"
+  )
+
+```
+
+
+Ndamukong Suh finds himself as the top producer for the 2/2i as he did for the 4i. But despite not having the individual star power, many other teams found success with this position without players like Suh:
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+df %>%
+  filter(TechniqueName == "2" |
+          TechniqueName == "2i") %>%
+  group_by(DefensiveTeam) %>%
+  summarise(Team = first(DefensiveTeam), 
+                  DEPA = mean(DEPA), snaps = n()) %>%
+  filter(snaps > 49) %>%
+  arrange(DEPA) %>%
+  ggplot(aes(reorder(DefensiveTeam, -DEPA), DEPA, fill = DEPA))+
+  geom_col() +
+  theme_bw()+
+  scale_fill_gradient2(low = "tomato", high = "springgreen4", midpoint =0) +
+  ggtitle("4i") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))+
+  theme(legend.position = "none") +
+  labs(title = "Team Average DEPA by All Plays Using 2/2i Technique",
+       subtitle = "Weeks 9 - 17, 2019",
+       x = "",
+       y = "DEPA")+
+  theme(plot.title = element_text(hjust = .5),
+        plot.subtitle = element_text(hjust = .5))
+
+```
+
+### **Right-Outside Backer**
+
+The right-outside backer was the second most frequently used technique in this sample time frame and brought defenses an admirable amount of success. Many individual players lined up in this position were able to bring forth positive output for their defenses, suggesting top-tier talent at the position is not as imperative as others on this list. While there is still drop off in output from the top names on the following list, the pool of talent capable of better than average DEPA is much greater than any other position in this analysis.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df %>%
+  filter(Technique == "ROutside") %>%
+  group_by(Name) %>%
+  summarise(Team = first(DefensiveTeam), DEPA = round(mean(DEPA),2), Snaps = n()) %>%
+  filter(Snaps > 49,
+         DEPA > .03) %>%
+  arrange(desc(DEPA)) %>%
+  gt() %>%
+  data_color(
+    columns = vars(Snaps),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+  data_color(
+    columns = vars(DEPA),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "bottom",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_column_labels(
+        columns = gt::everything()
+      )
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "left",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_body(
+        columns = vars(DEPA)
+      )
+    )
+  ) %>%
+  tab_header(
+    title = md("**Players with Above AVG Defensive EPA (DEPA) at Right-Outside Technique**"),
+    subtitle = "2019 Weeks 9 - 17"
+  )
+
+```
+
+The lack of necessity for talent at this position is supported at the team-level too as 22/32 teams were able to line up players at the right-outside backer and garner positive DEPA as a result.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+df %>%
+  filter(Technique == "ROutside") %>%
+  group_by(DefensiveTeam) %>%
+  summarise(Team = first(DefensiveTeam), 
+                  DEPA = mean(DEPA), snaps = n()) %>%
+  filter(snaps > 49) %>%
+  arrange(DEPA) %>%
+  ggplot(aes(reorder(DefensiveTeam, -DEPA), DEPA, fill = DEPA))+
+  geom_col() +
+  theme_bw()+
+  scale_fill_gradient2(low = "tomato", high = "springgreen4", midpoint =0) +
+  ggtitle("4i") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))+
+  theme(legend.position = "none") +
+  labs(title = "Team Average DEPA by All Plays Using Right-Outside Backer Technique",
+       subtitle = "Weeks 9 - 17, 2019",
+       x = "",
+       y = "DEPA")+
+  theme(plot.title = element_text(hjust = .5),
+        plot.subtitle = element_text(hjust = .5))
+
+```
+
+
+### **4**
+
+Finally, the 4 technique finishes this list of the top-five most important positions on an NFL defensive line. Only three individual players with 50 plus snaps at the 4 technique maintained above average DEPA output. So, of all the top-5 positions, the 4 appears to be the hardest to acquire top talent. 
+
+```{r, echo=FALSE, message=FALSE}
+df %>%
+  filter(TechniqueName == "4") %>%
+  group_by(Name) %>%
+  summarise(Team = first(DefensiveTeam), DEPA = round(mean(DEPA),2), Snaps = n()) %>%
+  filter(Snaps > 49,
+         DEPA > .03) %>%
+  arrange(desc(DEPA)) %>%
+  gt() %>%
+  data_color(
+    columns = vars(Snaps),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+  data_color(
+    columns = vars(DEPA),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "bottom",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_column_labels(
+        columns = gt::everything()
+      )
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "left",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_body(
+        columns = vars(DEPA)
+      )
+    )
+  ) %>%
+  tab_header(
+    title = md("**Players with Above AVG Defensive EPA (DEPA) at the 4 Technique**"),
+    subtitle = "2019 Weeks 9 - 17"
+  )
+
+```
+
+But on the team level, it appears there is some "plug and play" capability with this technique as 11 teams netted positive EPA results when utilizing the 4 technique. 
+
+```{r, echo=FALSE, message=FALSE}
+
+df %>%
+  filter(TechniqueName == "4") %>%
+  group_by(DefensiveTeam) %>%
+  summarise(Team = first(DefensiveTeam), 
+                  DEPA = mean(DEPA), snaps = n()) %>%
+  filter(snaps > 49) %>%
+  arrange(DEPA) %>%
+  ggplot(aes(reorder(DefensiveTeam, -DEPA), DEPA, fill = DEPA))+
+  geom_col() +
+  theme_bw()+
+  scale_fill_gradient2(low = "tomato", high = "springgreen4", midpoint =0) +
+  ggtitle("4i") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))+
+  theme(legend.position = "none") +
+  labs(title = "Team Average DEPA by All Plays Using 4 Technique",
+       subtitle = "Weeks 9 - 17, 2019",
+       x = "",
+       y = "DEPA")+
+  theme(plot.title = element_text(hjust = .5),
+        plot.subtitle = element_text(hjust = .5))
+
+```
+
+## **3. Not all situations are created equal. In which in-game or roster construction scenarios would the answer to Question 1 change?**
+
+Given the importance of passing in the NFL, it's no surprise that when filtering to pass plays only, the top-5 defensive positions still dominate the DEPA chart. The 4i leads the way on both sides of the ball just as it does with all plays considered and the L2/L2i, nose-tackle (0), right-outside, and left-side 4 gravitate near the top of the chart as well:
+
+```{r, echo=FALSE, message=FALSE}
+df %>%
+  filter(EventType == "pass") %>%
+  group_by(Technique) %>%
+  summarise(DEPA = round(mean(DEPA, na.rm = T),2), Snaps = n()) %>%
+  filter(Snaps > 49) %>%
+  arrange(desc(DEPA)) %>%
+  gt() %>%
+  data_color(
+    columns = vars(Snaps),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+  data_color(
+    columns = vars(DEPA),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "bottom",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_column_labels(
+        columns = gt::everything()
+      )
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "left",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_body(
+        columns = vars(DEPA)
+      )
+    )
+  ) %>%
+  tab_header(
+    title = md("Defensive EPA (DEPA) on **Passing Plays** by Technique"),
+    subtitle = "2019 Weeks 9 - 17"
+  )
+
+```
+
+
+When breaking down by rushing plays, the techniques contributing to DEPA success are a bit more scattered. But in terms of expected points added, rushing plays are generally less beneficial for NFL offenses. But short-yardage situations (such as third and less than three) are a different story. While the 4i is paramount during most situations, the L2, R2 and R2i techniques take over as key towards stopping opposing offenses on third and short (below). with that being said, the other top positions make their way towards the top performing on this chart as well.
+
+```{r, echo=FALSE, message=FALSE}
+df %>%
+  filter(Down == 3,
+         ToGo < 3) %>%
+  group_by(Technique) %>%
+  summarise(DEPA = round(mean(DEPA, na.rm = T),2), Snaps = n()) %>%
+  #filter(Snaps > 49) %>%
+  arrange(desc(DEPA)) %>%
+  gt() %>%
+  data_color(
+    columns = vars(Snaps),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+  data_color(
+    columns = vars(DEPA),
+    colors = scales::col_numeric(
+      # custom defined values - notice that order matters!
+      palette = c("#ffffff", "#f2fbd2", "#c9ecb4", "#93d3ab", "#35b0ab"),
+      domain = NULL
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "bottom",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_column_labels(
+        columns = gt::everything()
+      )
+    )
+  ) %>%
+    tab_style(
+    style = list(
+      cell_borders(
+        sides = "left",
+        color = "black",
+        weight = px(3)
+      )
+    ),
+    locations = list(
+      cells_body(
+        columns = vars(DEPA)
+      )
+    )
+  ) %>%
+  tab_header(
+    title = md("Defensive EPA (DEPA) on **3rd and Less than 3** by Technique"),
+    subtitle = "2019 Weeks 9 - 17"
+  )
+```
+
+
+## **Conclusion**
+
+While it's difficult to pinpoint the impact one technique directly has on the outcome of a play, this analysis instead focused on simply comparing output in terms of defensive EPA when each technique was utilized on a given play. In doing so, individual statistics amassed by the top techniques are not important. Only the result to the team matters. By averaging the EPA of opposing offenses, we get a better sense for the implied impact provided by each technique. 
+
+The most important position along the defensive line on an NFL football team appears to be the **4i technique** due to it's success when employed on passing plays and to a lesser degree on 3rd and less than 3. Given how important passing and converting on third and short is to NFL offenses, it's arguably just as important to put your defense in a position to stop opposing offenses. Teams that line up a 4i do that a lot better than when they don't.  
+
+In addition to identifying the 4i as most critical position on the defensive line, it is also severely underused. with only five percent of NFL snaps using the 4i on either side of the ball, NFL defenses might have a lot to gain by using this technique more often. 
+
+
+## **Assumptions**
+
+*1. Positions should be defined by their utility, not their prevalence*
+
+In the first table of this analysis, I tallied the counts of each individual technique on the defensive line to get an idea for those positions favored by NFL teams in general. I then broke down the production of each technique - in terms of defensive EPA - to determine the most effective techniques. This led me to define the top-5 positions on the defensive line as provided.
+
+*2. What really matters to defensive lines is putting their team in a position to score more points than their opponent*
+
+This is pretty John Madden level obvious, but sometimes it's easy to fall in love with sacks, tackles, and turnovers as an indicator for success and forget these statistics are just a means to the ultimate end of outscoring your opponent. Furthermore, it's often not obvious which techniques are responsible for a good play. Was it the pressure? The ability to take on two blockers? Was it closing up a passing lane diverting the QB to dump the ball off? There are countless possibilities here which remain untracked. EPA fixes all of this. while it is a team-level measure, NFL defenses are all about team execution anyway. I find the assumption that identifying which defensive plays utilized a particular technique and averaging the EPA for all plays gives a reasonable glimpse into the hidden impact that any individual technique might have had. 
+
+*3. Normality of strength of opponent*
+
+I'm assuming when compiling all plays at each technique that the strength of the offenses all techniques faced were relatively equal. 
+
+## **Limitations and Future Analysis**
+
+One of the limitations of this analysis was not having data on the offensive formations. It might prove helpful to see which techniques on defense tend to have success/failure vs. different offensive looks. 
+
+
+Another helpful piece of information would be some identification of double-team blocks. This might allow discovering which situations offenses should double-team a star defender and which situations they should not.  
+
+Finally, on passing plays, I think it would be interesting to track what read a quarterback threw to on passing plays and how much time he spent from receiving the snap to releasing the ball (or deciding to run etc.). Information like this would provide more meaningful ways of evaluating defensive line success as well as coverage success. 
+
+
+
+
