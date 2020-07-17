@@ -1,115 +1,239 @@
 library(tidyverse)
 library(readr)
 library(RCurl)
+library(glue)
 
+pbp <- read_csv("Data/AnalyticsChallenge2020Data.csv",
+                na = c("NULL", "NA"))
 
-x <- getURL("https://raw.githubusercontent.com/keegan-abdoo/AnalyticsChallenge2020/master/Data/AnalyticsChallenge2020Data.csv")
-pbp <- read.csv(text = x, na = c("NULL", "NA"))
+# Clean Data
+pbp_clean <- pbp %>%
+  # Remove kneels and spikes
+  filter(!str_detect(PlayDesc, "kneel") & !str_detect(PlayDesc, "spike")) %>%
+  mutate(event_type = if_else(str_detect(EventType, "pass"), "pass", "rush"),
+         yardline_100 = if_else(SideOfField == "Oppo", StartYard, 100 - StartYard),
+         tech_side = case_when(TechniqueName %in% c("0", "Off Ball") ~ TechniqueName,
+                               TechniqueName == "Outside" ~ as.character(glue("{SideOfBall}OLB")),
+                               TRUE ~ as.character(glue("{SideOfBall}{TechniqueName}"))),
+         in_designed_gap = case_when(event_type == "pass" ~ NA_real_,
+                                     RunDirection == "Middle" ~ 
+                                       if_else(tech_side %in% c("0", "L1", "R1", "L2i", "R2i"), 1, 0),
+                                     RunDirection == "Right A Gap" ~ 
+                                       if_else(tech_side %in% c("0", "L1", "L2", "L2i"), 1, 0),
+                                     RunDirection == "Left A Gap" ~ 
+                                       if_else(tech_side %in% c("0", "R1", "R2", "R2i"), 1, 0),
+                                     RunDirection == "Right Off-Tackle B Gap" ~ 
+                                       if_else(tech_side %in% c("L2", "L3", "L4", "L4i"), 1, 0),
+                                     RunDirection == "Left Off-Tackle B Gap" ~ 
+                                       if_else(tech_side %in% c("R2", "R3", "R4", "R4i"), 1, 0),
+                                     RunDirection == "Right Off-Tackle C Gap" ~ 
+                                       if_else(tech_side %in% c("L4", "L5", "L7", "L6"), 1, 0),
+                                     RunDirection == "Left Off-Tackle C Gap" ~ 
+                                       if_else(tech_side %in% c("R4", "R5", "R7", "R6"), 1, 0),
+                                     RunDirection == "Right D Gap" ~ 
+                                       if_else(tech_side %in% c("L6", "L9", "LOLB"), 1, 0),
+                                     RunDirection == "Left D Gap" ~ 
+                                       if_else(tech_side %in% c("R6", "R9", "ROLB"), 1, 0)),
+         success = if_else(EPA > 0, 1, 0),
+         position_group = case_when(TechniqueName %in% c("7", "Outside", "9", "6", "5") ~ "Edge",
+                                    TechniqueName == "Off Ball" ~ TechniqueName,
+                                    TRUE ~ "iDL"))
 
-
-# #Bind DL Technique and side of field
-# pbp <- pbp %>% mutate(TechniqueName = 
-#                         replace(TechniqueName, SideOfBall %in% c("L","R"), 
-#                                 paste0(SideOfBall[SideOfBall %in% c("L","R")], TechniqueName[SideOfBall %in% c("L","R")])))
-
-# Look at pressure rates from edge players vs interior players
-pbp <- pbp %>% mutate(EdgeRusher = if_else(TechniqueName %in% 
-                                             c("7", "Outside", "9", "6", "5") & IsRushing == 1, 1, 0))
-
-
-DEDT <- pbp %>% filter (EventType == "pass" & IsRushing == 1) %>% group_by(PlayerId) %>% 
+# # Look at pressure rates from edge players vs interior players
+DEDT <- pbp_clean %>% 
+  filter (event_type == "pass" & IsRushing == 1) %>% 
+  group_by(PlayerId) %>% 
   summarise(Player = paste(unique(Name), collapse = '-'),
             Position = paste(unique(RosterPosition), collapse = '-'),
-            RushSnaps = n(), Pressure = sum(Pressure), 
-            PressureRate = Pressure/RushSnaps, meanEPA = mean(EPA),
-            EdgeRate = sum(EdgeRusher)/RushSnaps,
-            EPA = sum(EPA)) %>% ungroup() %>% filter(RushSnaps >= 100)
+            RushSnaps = n(), 
+            Pressure = sum(Pressure), 
+            PressureRate = Pressure/RushSnaps, 
+            meanEPA = mean(EPA),
+            EdgeRate = sum(if_else(position_group == "Edge", 1, 0))/RushSnaps,
+            EPA = sum(EPA)) %>% 
+  ungroup() %>% 
+  filter(RushSnaps >= 100) %>%
+  mutate(dl_pos = as.factor(if_else(EdgeRate >= 0.5, "Edge", "iDL")))
 
+DEDT %>%
+  ggplot(aes(x = PressureRate, fill = dl_pos)) + 
+  geom_density(alpha = 0.5) + 
+  scale_fill_manual(values = c("red", "blue")) +
+  scale_y_continuous(limits = c(0, 15), expand = c(0, 0)) +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1),
+                     limits = c(0, 0.23), expand = c(0, 0)) +
+  labs(x = "Pressure Rate",
+       y = "Density",
+       title = "Distribution of Player Pressure Rates by Position Group",
+       fill = "Position Group") +
+  theme_bw() + 
+  theme(legend.position = c(0.915, 0.885),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_blank(),
+        axis.text.x = element_text(size = 12, margin = margin(5, 0, 10, 0)),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        plot.title = element_text(size = 18, hjust = 0.5, face = "bold",
+                                  margin = margin(b = 8, unit = "pt")),
+        plot.subtitle = element_text(size = 14, hjust = 0.5, face = "italic",
+                                     margin = margin(b = 16, unit = "pt")),
+        plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), "cm"))
 
-ggplot(data = DEDT, aes(x = PressureRate)) + 
-  geom_density(data = filter(DEDT, EdgeRate >= .50), aes(fill = "Edge", alpha = 0.05)) + 
-  geom_density(data = filter(DEDT, EdgeRate <= .50), aes(fill = "Interior", alpha = 0.05)) + 
-  scale_fill_manual(values = c("red","blue"))
-
-#How pressure from the edge vs interior affects the play
-Pressures <- pbp %>% filter (EventType == "pass") %>%
-  mutate(EdgePressure = if_else(TechniqueName %in% c("7", "Outside", "9", "6", "5") & Pressure == 1, 1, 0),
-         InteriorPressure = if_else(TechniqueName %in% c("1", "0", "3", "4", "2", "4i", "2i") & 
-                                      Pressure == 1, 1, 0)) %>% group_by(GameID, EventID) %>%
-  mutate(EdgePressure = max(EdgePressure), InteriorPressure = max(InteriorPressure)) %>%
-  summarise(EdgePressure = mean(EdgePressure),
-            InteriorPressure = mean(InteriorPressure),
+# How pressure from the edge vs interior affects the play
+Pressures <- pbp_clean %>% 
+  filter(event_type == "pass") %>%
+  mutate(edge_pressure = if_else(position_group == "Edge" & Pressure == 1, 1, 0),
+         idl_pressure = if_else(position_group == "iDL" & Pressure == 1, 1, 0)) %>% 
+  group_by(GameID, EventID) %>%
+  summarise(edge_p = max(edge_pressure),
+            idl_p = max(idl_pressure),
             Complete = paste(unique(Completion), collapse = "-"),
             OffensiveYardage = mean(OffensiveYardage),
-            EPA = mean(EPA), success = mean(success))
+            EPA = mean(EPA), 
+            success = mean(success)) %>%
+  mutate(pressure_type = case_when(edge_p == 1 & idl_p == 1 ~ "Both",
+                                   edge_p == 1 ~ "Edge",
+                                   idl_p == 1 ~ "iDL",
+                                   TRUE ~ "No Pressure"))
 
-ggplot(data = Pressures, aes(x = EPA)) +
-  geom_density(data = filter(Pressures, InteriorPressure == 1 & EdgePressure == 0),
-               aes(fill = "Interior Pressure", alpha = 0.05)) +
-  geom_density(data = filter(Pressures, InteriorPressure == 0 & EdgePressure == 1),
-               aes(fill = "Edge Pressure", alpha = 0.05)) +
-  geom_density(data = filter(Pressures, InteriorPressure == 0 & EdgePressure == 0),
-               aes(fill = "No Pressure", alpha = 0.05)) +
-  # geom_density(data = filter(Pressures, InteriorPressure == 1 & EdgePressure == 1),
-  #              aes(fill = "Edge + Interior Pressure", alpha = 0.05)) +
-  scale_fill_manual(values = c("red","blue", "green", "yellow"))
+Pressures %>%
+  filter(pressure_type != "No Pressure") %>%
+  ggplot(aes(x = EPA, fill = pressure_type)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("red", "blue", 
+                               #"green", 
+                               "yellow")) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_continuous(limits = c(-5, 5), expand = c(0, 0)) +
+  labs(x = "EPA",
+       y = "Density",
+       title = "Distribution of EPA by Pressure Type",
+       fill = "Pressure Type") +
+  theme_bw() + 
+  theme(legend.position = c(0.915, 0.885),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_blank(),
+        axis.text.x = element_text(size = 12, margin = margin(5, 0, 10, 0)),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        plot.title = element_text(size = 18, hjust = 0.5, face = "bold",
+                                  margin = margin(b = 8, unit = "pt")),
+        plot.subtitle = element_text(size = 14, hjust = 0.5, face = "italic",
+                                     margin = margin(b = 16, unit = "pt")),
+        plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), "cm"))
 
 
 
 #Look at pressure rates by technique - league wide
 
-techs <- pbp %>% filter (EventType == "pass" & IsRushing == 1) %>% group_by(tech_side) %>% 
-  summarise(RushSnaps = n(), Pressure = sum(Pressure), 
-            PressureRate = Pressure/RushSnaps, meanEPA = mean(EPA),EPA = sum(EPA)) %>% 
+techs <- pbp_clean %>% 
+  filter(event_type == "pass" & IsRushing == 1) %>% 
+  group_by(tech_side) %>% 
+  summarise(RushSnaps = n(), 
+            Pressure = sum(Pressure), 
+            PressureRate = Pressure/RushSnaps, 
+            meanEPA = mean(EPA),
+            EPA = sum(EPA)) %>% 
   ungroup()
 
+tech_names <- c("LOLB", "L9","L6", "L7", "L5", "L4", "L4i", "L3", "L2", "L2i", "L1", "0",
+                "R1", "R2i", "R2", "R3", "R4i", "R4", "R5", "R7", "R6", "R9", "ROLB")
 
-ggplot(data = techs , aes(x = tech_side, y = PressureRate)) +
-  geom_bar(stat = "identity", fill = "steelblue") + theme_minimal() +
-  scale_x_discrete(limits = c("LOLB", "L9","L6", "L7", "L5", "L4", "L4i", "L3", "L2", "L2i", "L1", "0",
-                              "R1", "R2i", "R2", "R3", "R4i", "R4", "R5", "R7", "R6", "R9", "ROLB"))
-
-
+techs %>%
+  filter(tech_side != "Off Ball") %>%
+  ggplot(aes(x = tech_side, y = PressureRate)) +
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  scale_x_discrete(limits = tech_names, expand = c(0.025, 0)) +
+  scale_y_continuous(limits = c(0, 0.13), expand = c(0, 0)) +
+  #scale_x_continuous(limits = c(-5, 5)) +
+  labs(x = "Technique",
+       y = "Pressure Rate",
+       title = "Pressure Rate by DL Technique") +
+  theme_bw() + 
+  theme(axis.title = element_text(size = 14),
+        axis.text.x = element_text(size = 11, margin = margin(5, 0, 10, 0)),
+        axis.text.y = element_text(size = 12, margin = margin(0, 5, 0, 10)),
+        plot.title = element_text(size = 18, hjust = 0.5, face = "bold",
+                                  margin = margin(b = 8, unit = "pt")),
+        plot.subtitle = element_text(size = 14, hjust = 0.5, face = "italic",
+                                     margin = margin(b = 16, unit = "pt")),
+        plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), "cm"))
 
 #Look at whether the presence of 0/1 tech defenders affect the outcome of inside runs
 
 #Create column with DL alignments for each play vs run 
 
-dfrun <- pbp %>% filter (EventType == "rush") %>% group_by(GameID, EventID) %>%
+dfrun <- pbp_clean %>% 
+  filter(EventType == "rush") %>% 
+  group_by(GameID, EventID) %>%
   mutate(in_designed_gap = max(in_designed_gap)) %>% 
-  summarise(Quarter = mean(Quarter), TimeLeft = mean(TimeLeft),
-            Down = mean(Down), ToGo = mean(ToGo), StartYard = mean(yardline_100),
-            OffensiveYardage = mean(OffensiveYardage), EPA = mean(EPA), success = mean(success),
+  summarise(Quarter = mean(Quarter), 
+            TimeLeft = mean(TimeLeft),
+            Down = mean(Down), 
+            ToGo = mean(ToGo), 
+            StartYard = mean(yardline_100),
+            OffensiveYardage = mean(OffensiveYardage), 
+            EPA = mean(EPA), 
+            success = mean(success),
             RunDirection= paste(unique(RunDirection), collapse = '-'),
             UsedDesignedGap = paste(unique(UsedDesignedGap), collapse = '-'),
             in_designed_gap = paste(unique(in_designed_gap), collapse = '-'),
             PlayDesc = paste(unique(PlayDesc), collapse = '-'),
             DL = paste(unique(tech_side), collapse = '-'))
 
-#Remove kneeldowns
-
-dfrun <- dfrun %>% filter(!str_detect(PlayDesc, "kneels"))
-
-
 #Compare distribution of EPA and Offensive Yards Gained and success rate
 #of plays with a defender in the run gap and plays without
 
-ggplot(data = dfrun, aes(x = EPA)) + 
-  geom_density(data = filter(dfrun, in_designed_gap == 1 & UsedDesignedGap == 1), 
-               aes(fill = "Defender Present", alpha = 0.05)) + 
-  geom_density(data = filter(dfrun, in_designed_gap == 0 & UsedDesignedGap == 1), 
-               aes(fill = "Defender not-present", alpha = 0.05)) + 
+dfrun %>%
+  filter(UsedDesignedGap == 0) %>%
+  geom_density(alpha = 0.5) +
   scale_fill_manual(values = c("red","blue"))
 
-ggplot(data = dfrun, aes(x = OffensiveYardage)) + 
-  geom_density(data = filter(dfrun, in_designed_gap == 1 & UsedDesignedGap == 1), 
-               aes(fill = "Defender Present", alpha = 0.05)) + 
-  geom_density(data = filter(dfrun, in_designed_gap == 0 & UsedDesignedGap == 1), 
-               aes(fill = "Defender not-present", alpha = 0.05)) + 
+dfrun %>%
+  ggplot(aes(x = OffensiveYardage, fill = in_designed_gap)) + 
+  geom_density(alpha = 0.5) +
   scale_fill_manual(values = c("red","blue"))
 
+dfrun %>%
+  ggplot(aes(x = EPA, fill = UsedDesignedGap)) + 
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("red","blue"))
 
-ggplot(data = filter(dfrun, in_designed_gap == 1) , aes(x = success)) +
-  geom_bar(aes(y = (..count..)/sum(..count..)), fill = "steelblue") + theme_minimal() +
-  scale_x_discrete(limits = c(0,1)) + scale_y_continuous(breaks = seq(0.05, 0.60, 0.05))
+# Using the Designed Gap appears to lead to more success for the offense
+dfrun %>%
+  group_by(UsedDesignedGap) %>%
+  summarize(runs = n(),
+            epa = mean(EPA, na.rm = T),
+            sr = mean(success))
 
+# Having a defender in/next to the designed gap appears to prevent more big plays as measured by EPA
+dfrun %>%
+  group_by(in_designed_gap) %>%
+  summarize(runs = n(),
+            epa = mean(EPA, na.rm = T),
+            sr = mean(success))
+
+# The most successful run type is when the offense targets an unoccupied gap and is able to run
+# through that gap, as the only run type that gains positive EPA on average
+dfrun %>%
+  group_by(in_designed_gap, UsedDesignedGap) %>%
+  summarize(runs = n(),
+            epa = mean(EPA, na.rm = T),
+            sr = mean(success))
+
+# We can conclude a defensive lineman's ability to force a run away from a designed gap that they
+# occupy has a positive effect of ~0.05 epa per run
+dfrun %>%
+  filter(in_designed_gap == 1) %>%
+  group_by(UsedDesignedGap) %>%
+  summarize(runs = n(),
+            epa = mean(EPA, na.rm = T),
+            sr = mean(success))
+
+dfrun %>%
+  filter(in_designed_gap == 1) %>%
+  ggplot(aes(x = success)) +
+  geom_bar(aes(y = (..count..)/sum(..count..)), fill = "steelblue") + 
+  theme_minimal() +
+  scale_x_discrete(limits = c(0,1), labels = c(0, 1)) + 
+  scale_y_continuous(breaks = seq(0.05, 0.60, 0.05))
