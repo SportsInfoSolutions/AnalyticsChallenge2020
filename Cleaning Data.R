@@ -7,7 +7,7 @@ pbp <- read_csv("Data/AnalyticsChallenge2020Data.csv",
 unique(pbp$TechniqueName)
 
 # Clean Data
-pbp <- pbp %>%
+pbp %>%
     mutate(event_type = if_else(str_detect(EventType, "pass"), "pass", "rush"),
            yardline_100 = if_else(SideOfField == "Oppo", StartYard, 100 - StartYard),
            tech_side = case_when(TechniqueName %in% c("0", "Off Ball") ~ TechniqueName,
@@ -32,10 +32,7 @@ pbp <- pbp %>%
                                            if_else(tech_side %in% c("L6", "L9", "LOLB"), 1, 0),
                                        RunDirection == "Right D Gap" ~ 
                                            if_else(tech_side %in% c("R6", "R9", "ROLB"), 1, 0)),
-           success = if_else(EPA > 0, 1, 0))
-# %>%
-#     select(RunDirection, tech_side, in_designed_gap) %>%
-#     distinct() %>%
-#     arrange(desc(in_designed_gap), RunDirection) %>%
-#     View()
-
+           success = if_else(EPA > 0, 1, 0),
+           position_group = case_when(TechniqueName %in% c("7", "Outside", "9", "6", "5") ~ "Edge",
+                                      TechniqueName == "Off Ball" ~ TechniqueName,
+                                      TRUE ~ "iDL"))
