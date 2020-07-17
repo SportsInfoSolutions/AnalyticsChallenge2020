@@ -260,6 +260,10 @@ dfrun %>%
 player_leaderboard <- pbp_clean %>%
   group_by(Name, PlayerId) %>%
   summarize(all_snaps = n(),
+            edge_snaps = sum(if_else(position_group == "Edge", 1, 0)),
+            edge_pct = edge_snaps/all_snaps,
+            idl_snaps = sum(if_else(position_group == "iDL", 1, 0)),
+            idl_pct = idl_snaps/all_snaps,
             run_snaps = sum(if_else(event_type == "designed run", 1, 0)),
             pass_snaps = all_snaps - run_snaps,
             pass_rushes = sum(if_else(IsRushing == 1, 1, 0), na.rm = T),
@@ -269,4 +273,7 @@ player_leaderboard <- pbp_clean %>%
             gap_forces = sum(if_else(in_designed_gap == 1 & 
                                        UsedDesignedGap == 0, 1, 0), na.rm = T),
             gap_force_rate = gap_forces/runs_at_player) %>%
+  mutate(position = case_when(edge_pct >= 0.5 ~ "Edge",
+                              idl_pct >= 0.5 ~ "iDL",
+                              TRUE ~ "Other")) %>%
   arrange(desc(all_snaps))
