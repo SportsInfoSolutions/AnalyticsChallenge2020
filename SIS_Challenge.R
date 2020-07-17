@@ -10,12 +10,22 @@ pbp <- read_csv("Data/AnalyticsChallenge2020Data.csv",
 pbp_clean <- pbp %>%
   # Remove kneels and spikes
   filter(!str_detect(PlayDesc, "kneel") & !str_detect(PlayDesc, "spike")) %>%
-  mutate(event_type = if_else(str_detect(EventType, "pass"), "pass", "rush"),
+  # Classify Scrambles using SIS data (more reliable than GSIS-provided play descriptions)
+  left_join(pbp %>%
+              group_by(GameID, EventID) %>%
+              summarize(run = max(if_else(str_detect(EventType, "designed run"), 1, 0)),
+                        pass = max(if_else(str_detect(EventType, "pass"), 1, 0)),
+                        pass_rush = max(if_else(IsRushing == 1, 1, 0))) %>%
+              filter(run == 1 & pass_rush == 1) %>%
+              select(GameID, EventID) %>%
+              mutate(scramble = 1)) %>%
+  mutate(scramble = replace_na(scramble, 0),
+         event_type = if_else(str_detect(EventType, "pass") | scramble == 1, "dropback", "designed run"),
          yardline_100 = if_else(SideOfField == "Oppo", StartYard, 100 - StartYard),
          tech_side = case_when(TechniqueName %in% c("0", "Off Ball") ~ TechniqueName,
                                TechniqueName == "Outside" ~ as.character(glue("{SideOfBall}OLB")),
                                TRUE ~ as.character(glue("{SideOfBall}{TechniqueName}"))),
-         in_designed_gap = case_when(event_type == "pass" ~ NA_real_,
+         in_designed_gap = case_when(event_type == "dropback" ~ NA_real_,
                                      RunDirection == "Middle" ~ 
                                        if_else(tech_side %in% c("0", "L1", "R1", "L2i", "R2i"), 1, 0),
                                      RunDirection == "Right A Gap" ~ 
@@ -39,9 +49,15 @@ pbp_clean <- pbp %>%
                                     TechniqueName == "Off Ball" ~ TechniqueName,
                                     TRUE ~ "iDL"))
 
+pbp_clean %>%
+  filter(event_type == "designed run" & UsedDesignedGap == 0) %>%
+  mutate(TimeLeft = glue("{floor(TimeLeft/60)}:{TimeLeft - floor(TimeLeft/60)*60}")) %>%
+  select(Week, OffensiveTeam, Quarter, TimeLeft, Down, ToGo, RunDirection) %>%
+  distinct()
+
 # # Look at pressure rates from edge players vs interior players
 DEDT <- pbp_clean %>% 
-  filter (event_type == "pass" & IsRushing == 1) %>% 
+  filter (event_type == "dropback" & IsRushing == 1) %>% 
   group_by(PlayerId) %>% 
   summarise(Player = paste(unique(Name), collapse = '-'),
             Position = paste(unique(RosterPosition), collapse = '-'),
@@ -81,7 +97,7 @@ DEDT %>%
 
 # How pressure from the edge vs interior affects the play
 Pressures <- pbp_clean %>% 
-  filter(event_type == "pass") %>%
+  filter(event_type == "dropback") %>%
   mutate(edge_pressure = if_else(position_group == "Edge" & Pressure == 1, 1, 0),
          idl_pressure = if_else(position_group == "iDL" & Pressure == 1, 1, 0)) %>% 
   group_by(GameID, EventID) %>%
@@ -127,7 +143,7 @@ Pressures %>%
 #Look at pressure rates by technique - league wide
 
 techs <- pbp_clean %>% 
-  filter(event_type == "pass" & IsRushing == 1) %>% 
+  filter(event_type == "dropback" & IsRushing == 1) %>% 
   group_by(tech_side) %>% 
   summarise(RushSnaps = n(), 
             Pressure = sum(Pressure), 
@@ -164,7 +180,7 @@ techs %>%
 #Create column with DL alignments for each play vs run 
 
 dfrun <- pbp_clean %>% 
-  filter(EventType == "rush") %>% 
+  filter(event_type == "designed run") %>% 
   group_by(GameID, EventID) %>%
   mutate(in_designed_gap = max(in_designed_gap)) %>% 
   summarise(Quarter = mean(Quarter), 
@@ -186,6 +202,7 @@ dfrun <- pbp_clean %>%
 
 dfrun %>%
   filter(UsedDesignedGap == 0) %>%
+  ggplot(aes(x = EPA, fill = in_designed_gap)) + 
   geom_density(alpha = 0.5) +
   scale_fill_manual(values = c("red","blue"))
 
@@ -237,3 +254,19 @@ dfrun %>%
   theme_minimal() +
   scale_x_discrete(limits = c(0,1), labels = c(0, 1)) + 
   scale_y_continuous(breaks = seq(0.05, 0.60, 0.05))
+
+
+### Look at positional leaderboards for pressure rate and forcing runs away from gap
+player_leaderboard <- pbp_clean %>%
+  group_by(Name, PlayerId) %>%
+  summarize(all_snaps = n(),
+            run_snaps = sum(if_else(event_type == "designed run", 1, 0)),
+            pass_snaps = all_snaps - run_snaps,
+            pass_rushes = sum(if_else(IsRushing == 1, 1, 0), na.rm = T),
+            pressures = sum(Pressure, na.rm = T),
+            p_rate = pressures/pass_rushes,
+            runs_at_player = sum(in_designed_gap, na.rm = T),
+            gap_forces = sum(if_else(in_designed_gap == 1 & 
+                                       UsedDesignedGap == 0, 1, 0), na.rm = T),
+            gap_force_rate = gap_forces/runs_at_player) %>%
+  arrange(desc(all_snaps))
