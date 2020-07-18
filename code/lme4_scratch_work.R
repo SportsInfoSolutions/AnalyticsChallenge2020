@@ -24,7 +24,41 @@ sis_df <- sis_df %>%
 sis_df$EPA <- as.numeric(sis_df$EPA)
 
 # Just kinda messing around with some simple models
-sis_model <- lmer(formula = EPA ~ 1 + total_pressure + (1|OnFieldPosition),
+sis_model <- lmer(formula = EPA ~ 1 + total_pressure + ListedDefenders + OnFieldPosition +
+                    (1|OnFieldPosition),
                   data = sis_df)
 
 summary(sis_model)
+
+# GAM to see how much each player contributes to EPA
+library(mgcv)
+
+
+
+sis_df <- sis_df %>%
+  group_by(GameID, EventID) %>%
+  mutate(ForcedFumbleOnPlay = max(ForcedFumble),
+         RecoveredFumbleOnPlay = max(RecoveredFumble),
+         Sackers = sum(AssistedSack) + sum(SoloSack),
+         Sack = ifelse(Sackers == 0, 0, SoloSack + (AssistedSack / Sackers)))
+
+sis_passes <- sis_df %>%
+  filter(Attempt != "NULL")
+
+epa_impact_gam <- gam(EPA ~ Pressure + Sack + PassBreakup + Interception + ForcedFumble +
+                      RecoveredFumble,
+                      data = sis_passes)
+
+summary(epa_impact_gam)
+
+
+sis_passes <- sis_passes %>%
+  modelr::add_predictions(epa_impact_gam, var = "IndividualEPA")
+
+# Do some playing around with individual EPA on passing plays
+sis_passes_model <- lmer(formula = EPA ~ 1 + total_pressure + ListedDefenders + OnFieldPosition +
+                    (1|OnFieldPosition),
+                  data = sis_passes)
+
+summary(sis_passes_model)
+
