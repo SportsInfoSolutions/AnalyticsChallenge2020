@@ -43,32 +43,6 @@ sis_df <- sis_df %>%
          Sackers = sum(AssistedSack) + sum(SoloSack),
          Sack = ifelse(Sackers == 0, 0, SoloSack + (AssistedSack / Sackers)))
 
-sis_passes <- sis_df %>%
-  filter(Attempt != "NULL")
-
-epa_impact_gam <- gam(EPA ~ Pressure + Sack + PassBreakup + Interception + ForcedFumble +
-                      RecoveredFumble,
-                      data = sis_passes)
-
-summary(epa_impact_gam)
-
-
-sis_passes <- sis_passes %>%
-  modelr::add_predictions(epa_impact_gam, var = "IndividualEPA")
-
-# Do some playing around with individual EPA on passing plays
-sis_passes_model <- lmer(formula = EPA ~ 1 + total_pressure + ListedDefenders + OnFieldPosition +
-                    (1|OnFieldPosition),
-                  data = sis_passes)
-
-summary(sis_passes_model)
-
-sis_passes %>%
-  group_by(Name, DefensiveTeam) %>%
-  summarize(sumEPA = sum(IndividualEPA),
-            snaps = n()) %>%
-  arrange(sumEPA) -> defenders
-
 
 # Anthony's code from create positions.R
 
@@ -120,28 +94,6 @@ sis_df %>%
   group_by(UpdatedPosition) %>%
   summarize(n = n())
 
-# try out the new updatedposition column in the sis_passes df
-
-
-sis_passes <- sis_df %>%
-  filter(Attempt != "NULL")
-
-epa_impact_gam <- gam(EPA ~ Pressure + Sack + PassBreakup + Interception + ForcedFumble +
-                        RecoveredFumble,
-                      data = sis_passes)
-
-summary(epa_impact_gam)
-
-
-sis_passes <- sis_passes %>%
-  modelr::add_predictions(epa_impact_gam, var = "IndividualEPA")
-
-# Do some playing around with individual EPA on passing plays
-sis_passes_model <- lmer(formula = IndividualEPA ~ 1 + total_pressure + ListedDefenders +
-                           (1|UpdatedPosition),
-                         data = sis_passes)
-
-summary(sis_passes_model)
 
 # Visualize what positions players with 400+ snaps mostly play
 sis_df %>%
@@ -164,5 +116,41 @@ sis_df %>%
        x = "Proportion of Snaps",
        y = "Player")
 
+# Make our model
+sis_passes <- sis_df %>%
+  filter(Attempt != "NULL")
+
+epa_impact_passes_gam <- gam(EPA ~ Pressure + Sack + PassBreakup + Interception + ForcedFumble +
+                               RecoveredFumble,
+                             data = sis_passes)
+
+summary(epa_impact_passes_gam)
 
 
+sis_passes <- sis_passes %>%
+  modelr::add_predictions(epa_impact_passes_gam, var = "IndividualEPA")
+
+# Peek at some players' individual EPA
+
+sis_passes %>%
+  group_by(Name, DefensiveTeam) %>%
+  summarize(sumEPA = sum(IndividualEPA),
+            snaps = n()) %>%
+  arrange(sumEPA) -> defenders
+
+
+
+# Curious so I'll look at the individual EPA by updated position on passing plays
+sis_passes %>%
+  group_by(UpdatedPosition) %>%
+  summarize(mean_EPA = mean(IndividualEPA))
+
+
+# Try to come up with a model for rushing plays to determine IndividualEPA
+
+sis_rushes <- sis_df %>%
+  filter(Attempt == "NULL")
+
+epa_impact_rushes_gam <- gam(EPA ~ FumbleByRusher + ForcedFumble + RecoveredFumble + UsedDesignedGap,
+                             data = sis_rushes)
+summary(epa_impact_rushes_gam)
