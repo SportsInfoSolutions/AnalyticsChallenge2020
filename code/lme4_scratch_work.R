@@ -120,4 +120,49 @@ sis_df %>%
   group_by(UpdatedPosition) %>%
   summarize(n = n())
 
+# try out the new updatedposition column in the sis_passes df
+
+
+sis_passes <- sis_df %>%
+  filter(Attempt != "NULL")
+
+epa_impact_gam <- gam(EPA ~ Pressure + Sack + PassBreakup + Interception + ForcedFumble +
+                        RecoveredFumble,
+                      data = sis_passes)
+
+summary(epa_impact_gam)
+
+
+sis_passes <- sis_passes %>%
+  modelr::add_predictions(epa_impact_gam, var = "IndividualEPA")
+
+# Do some playing around with individual EPA on passing plays
+sis_passes_model <- lmer(formula = IndividualEPA ~ 1 + total_pressure + ListedDefenders +
+                           (1|UpdatedPosition),
+                         data = sis_passes)
+
+summary(sis_passes_model)
+
+# Visualize what positions players with 400+ snaps mostly play
+sis_df %>%
+  group_by(Name, DefensiveTeam) %>%
+  summarize(EDGE = sum(UpdatedPosition == "EDGE"),
+            NOSE = sum(UpdatedPosition == "NOSE"),
+            DT = sum(UpdatedPosition == "DT"),
+            IDL = sum(UpdatedPosition == "IDL"),
+            snaps = n()) %>%
+  filter(snaps >= 400) %>%
+  select(-snaps) %>%
+  pivot_longer(cols = EDGE:IDL,
+               names_to = "Position",
+               values_to = "Snaps") %>%
+  ggplot(aes(x = Snaps, y = Name, fill = Position)) +
+  geom_col(position = "fill") +
+  theme_bw() +
+  labs(title = "Most Common Positions by Player",
+       subtitle = "Min. 400 Snaps",
+       x = "Proportion of Snaps",
+       y = "Player")
+
+
 
