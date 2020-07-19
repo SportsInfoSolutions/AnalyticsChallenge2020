@@ -110,7 +110,7 @@ sis_df <- sis_df %>%
 sis_df <- sis_df %>%
   mutate(UpdatedPosition = case_when(TechniqueName == "Outside" ~ "EDGE",
                                      (TechniqueName == "1" | TechniqueName == "0") &
-                                       as.character(next_tech_to_L) <= as.character("L 3") &
+                                       as.character(next_tech_to_L) >= as.character("L 3") &
                                        as.character(next_tech_to_R) >= as.character("R 3") ~ "NOSE",
                                      TechniqueName == "4i" | TechniqueName <= "4" ~ "DT",
                                      TRUE ~ "IDL"))
