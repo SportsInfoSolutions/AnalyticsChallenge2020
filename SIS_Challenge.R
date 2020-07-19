@@ -15,8 +15,9 @@ pbp_clean <- pbp %>%
               group_by(GameID, EventID) %>%
               summarize(run = max(if_else(str_detect(EventType, "designed run"), 1, 0)),
                         pass = max(if_else(str_detect(EventType, "pass"), 1, 0)),
-                        pass_rush = max(if_else(IsRushing == 1, 1, 0))) %>%
-              filter(run == 1 & pass_rush == 1) %>%
+                        pass_rush = max(if_else(IsRushing == 1, 1, 0)),
+                        PlayDesc = paste(unique(PlayDesc), collapse = '-')) %>%
+              filter((run == 1 & pass_rush == 1)|str_detect(PlayDesc, "scramble")) %>%
               select(GameID, EventID) %>%
               mutate(scramble = 1)) %>%
   mutate(scramble = replace_na(scramble, 0),
