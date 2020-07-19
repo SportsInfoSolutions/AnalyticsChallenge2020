@@ -21,6 +21,26 @@ sis_df <- sis_df %>%
   group_by(GameID, EventID) %>%
   mutate(ListedDefenders = n())
 
+# Add Run Gap and Side
+sis_df <- sis_df %>%
+  mutate(run_side = case_when(str_detect(RunDirection, "Left") ~ "L",
+                              str_detect(RunDirection, "Right") ~ "R",
+                              str_detect(RunDirection, "Middle") ~ "Middle"),
+         run_gap = case_when(str_detect(RunDirection, "D Gap") ~ "D",
+                             str_detect(RunDirection, "C Gap") ~ "C",
+                             str_detect(RunDirection, "B Gap") ~ "B",
+                             str_detect(RunDirection, "A Gap") ~ "A",
+                             str_detect(RunDirection, "Middle") ~ "Middle"),
+         defender_run_gap = case_when(TechniqueName == "0" ~ "Middle / A",
+                                      TechniqueName == "1" | TechniqueName == "2i" ~ "A",
+                                      TechniqueName == "2" ~ "A / B",
+                                      TechniqueName == "3" | TechniqueName == "4i" ~ "B",
+                                      TechniqueName == "4" ~ "B / C",
+                                      TechniqueName == "5" | TechniqueName == "7" ~ "C",
+                                      TechniqueName == "6" ~ "C / D",
+                                      TechniqueName == "9" | TechniqueName == "Outside" ~ "D"),
+         fill_run_gap = ifelse(str_detect(defender_run_gap, run_gap) & run_side == SideOfBall, 1, 0))
+
 # EPA is a character variable for some reason so let's change that
 sis_df$EPA <- as.numeric(sis_df$EPA)
 
@@ -151,6 +171,29 @@ sis_passes %>%
 sis_rushes <- sis_df %>%
   filter(Attempt == "NULL")
 
-epa_impact_rushes_gam <- gam(EPA ~ FumbleByRusher + ForcedFumble + RecoveredFumble + UsedDesignedGap,
+epa_impact_rushes_gam <- gam(EPA ~ FumbleByRusher + ForcedFumble + RecoveredFumble + UsedDesignedGap +
+                               fill_run_gap + SoloTackle + AssistedTackle,
                              data = sis_rushes)
 summary(epa_impact_rushes_gam)
+
+sis_rushes <- sis_rushes %>%
+  modelr::add_predictions(epa_impact_rushes_gam, var = "IndidualEPA")
+
+# How much does each position contribute in terms of Individual EPA on rushing plays?
+sis_rushes %>%
+  group_by(UpdatedPosition) %>%
+  summarize(mean_EPA = mean(EPA),
+            count = n())
+
+# Add the EPA models to the main sis_df dataframe
+sis_df <- sis_df %>%
+  modelr::add_predictions(epa_impact_passes_gam, var = "PassIndividualEPA")
+
+sis_df <- sis_df %>%
+  modelr::add_predictions(epa_impact_rushes_gam, var = "RushIndividualEPA")
+
+sis_df <- sis_df %>%
+  mutate(IndividualEPA = ifelse(Attempt != "NULL", PassIndividualEPA, RushIndividualEPA)) %>%
+  select(-c(PassIndividualEPA, RushIndividualEPA))
+
+
