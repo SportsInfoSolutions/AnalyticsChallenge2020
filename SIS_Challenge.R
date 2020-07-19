@@ -15,8 +15,9 @@ pbp_clean <- pbp %>%
               group_by(GameID, EventID) %>%
               summarize(run = max(if_else(str_detect(EventType, "designed run"), 1, 0)),
                         pass = max(if_else(str_detect(EventType, "pass"), 1, 0)),
-                        pass_rush = max(if_else(IsRushing == 1, 1, 0))) %>%
-              filter(run == 1 & pass_rush == 1) %>%
+                        pass_rush = max(if_else(IsRushing == 1, 1, 0)),
+                        PlayDesc = paste(unique(PlayDesc), collapse = '-')) %>%
+              filter((run == 1 & pass_rush == 1)|str_detect(PlayDesc, "scramble")) %>%
               select(GameID, EventID) %>%
               mutate(scramble = 1)) %>%
   mutate(scramble = replace_na(scramble, 0),
@@ -44,6 +45,7 @@ pbp_clean <- pbp %>%
                                        if_else(tech_side %in% c("L6", "L9", "LOLB"), 1, 0),
                                      RunDirection == "Left D Gap" ~ 
                                        if_else(tech_side %in% c("R6", "R9", "ROLB"), 1, 0)),
+         run_force = if_else(UsedDesignedGap == 0 & in_designed_gap == 1, 1, 0)
          success = if_else(EPA > 0, 1, 0),
          position_group = case_when(TechniqueName %in% c("7", "Outside", "9", "6", "5") ~ "Edge",
                                     TechniqueName == "Off Ball" ~ TechniqueName,
@@ -277,3 +279,9 @@ player_leaderboard <- pbp_clean %>%
                               idl_pct >= 0.5 ~ "iDL",
                               TRUE ~ "Other")) %>%
   arrange(desc(all_snaps))
+
+
+dfrun %>% na.omit()  %>%
+  ggplot(aes(x = in_designed_gap, y = EPA, fill = UsedDesignedGap)) + geom_boxplot() 
+
+boxplot(EPA ~ pressure_type, data = Pressures)
