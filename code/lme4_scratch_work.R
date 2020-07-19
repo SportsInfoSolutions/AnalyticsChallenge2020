@@ -1,6 +1,7 @@
 # Try playing around with lme4 package
 install.packages("lme4")
 library(lme4)
+library(dplyr)
 
 sis_df <- read.csv('https://raw.githubusercontent.com/SportsInfoSolutions/AnalyticsChallenge2020/master/Data/AnalyticsChallenge2020Data.csv', stringsAsFactors = F)
 
@@ -61,4 +62,62 @@ sis_passes_model <- lmer(formula = EPA ~ 1 + total_pressure + ListedDefenders + 
                   data = sis_passes)
 
 summary(sis_passes_model)
+
+sis_passes %>%
+  group_by(Name, DefensiveTeam) %>%
+  summarize(sumEPA = sum(IndividualEPA),
+            snaps = n()) %>%
+  arrange(sumEPA) -> defenders
+
+
+# Anthony's code from create positions.R
+
+basic_tech_ord <- c(1,'2i',2,3,'4i',4,5,7,6,9,'Outside')
+tech_ord_LR <- c(paste0('L ',rev(basic_tech_ord)),'NULL 0',paste0('R ',basic_tech_ord))
+names(tech_ord_LR) <- 1:length(tech_ord_LR)
+
+
+tech_df <- sis_df %>% 
+  filter(TechniqueName != 'Off Ball') %>% 
+  mutate(TechSide = factor(paste0(SideOfBall, ' ', TechniqueName), tech_ord_LR)) %>% 
+  select(GameID, EventID, PlayerId, Name, SideOfBall, TechniqueName, TechSide) %>% 
+  group_by(GameID, EventID) %>%
+  mutate(
+    players_listed_LR = gsub('R ','',gsub('L ', '', gsub('NULL ', '', paste0(sort(TechSide), collapse = ' | ')))),
+    players_listed_RL = gsub('R ','',gsub('L ', '', gsub('NULL ', '', paste0(rev(sort(TechSide)), collapse = ' | ')))),
+    players_listed = ifelse(players_listed_LR > players_listed_RL, players_listed_LR, players_listed_RL),
+    players_listed_LR = NULL,
+    players_listed_RL = NULL,
+    player_order_LR = order(TechSide),
+    player_order_RL = order(rev(TechSide)),
+    next_tech_to_R = sort(TechSide)[order(TechSide) + 1],
+    next_tech_to_L = rev(sort(TechSide))[order(rev(TechSide)) + 1],
+    on_ball_cnt = n()
+  )
+
+sis_df <- sis_df %>%
+  left_join(tech_df)
+
+# Add our defined positions which are as follows:
+# EDGE is a stand-up player at the end of the line of scrimmage (Outside tech only)
+# NOSE is a 0 or 1 with no one closer to him than a 3 on either side. This is typically 
+# the middle player in 3-4 defense
+# DT is a player at or between the 4 tech that does not meet the conditions 
+# for an EDGE or NOSE
+# IDL basically anyone who is left. 5 tech or further out, but not the player at the 
+# end of the line either
+
+sis_df <- sis_df %>%
+  mutate(UpdatedPosition = case_when(TechniqueName == "Outside" ~ "EDGE",
+                                     (TechniqueName == "1" | TechniqueName == "0") &
+                                       as.character(next_tech_to_L) <= as.character("L 3") &
+                                       as.character(next_tech_to_R) >= as.character("R 3") ~ "NOSE",
+                                     TechniqueName == "4i" | TechniqueName <= "4" ~ "DT",
+                                     TRUE ~ "IDL"))
+
+# Check counts
+sis_df %>%
+  group_by(UpdatedPosition) %>%
+  summarize(n = n())
+
 
