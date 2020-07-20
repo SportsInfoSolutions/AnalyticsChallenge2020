@@ -5,7 +5,8 @@ library(dplyr)
 
 sis_df <- read.csv('https://raw.githubusercontent.com/SportsInfoSolutions/AnalyticsChallenge2020/master/Data/AnalyticsChallenge2020Data.csv', stringsAsFactors = F)
 
-# Added a couple of the features that Zach had mentioned
+sis_df <- sis_df %>%
+  filter()
 
 # See how many players get pressure on one play
 sis_df %>%
@@ -39,7 +40,10 @@ sis_df <- sis_df %>%
                                       TechniqueName == "5" | TechniqueName == "7" ~ "C",
                                       TechniqueName == "6" ~ "C / D",
                                       TechniqueName == "9" | TechniqueName == "Outside" ~ "D"),
-         fill_run_gap = ifelse(str_detect(defender_run_gap, run_gap) & run_side == SideOfBall, 1, 0))
+         fill_run_gap = ifelse(str_detect(defender_run_gap, run_gap) & run_side == SideOfBall, 1, 0),
+         pass_down = case_when(Down == 2 & ToGo >= 5 ~ 1,
+                               (Down == 3 | Down == 4) & ToGo >= 2 ~ 1,
+                               TRUE ~ 0))
 
 # EPA is a character variable for some reason so let's change that
 sis_df$EPA <- as.numeric(sis_df$EPA)
@@ -195,5 +199,45 @@ sis_df <- sis_df %>%
 sis_df <- sis_df %>%
   mutate(IndividualEPA = ifelse(Attempt != "NULL", PassIndividualEPA, RushIndividualEPA)) %>%
   select(-c(PassIndividualEPA, RushIndividualEPA))
+
+
+# Might not really need this but who knows
+sis_df <- sis_df %>%
+  mutate(YardsFromGoal = ifelse(SideOfField == "Own", 100 - StartYard, StartYard))
+
+
+# Do some modeling
+
+#Overall model
+sis_model <- lmer(IndividualEPA ~ (1|UpdatedPosition),
+                  data = sis_df)
+
+summary(sis_model)
+
+ranef(sis_model)
+
+# Passing downs
+
+sis_pass_down <- sis_df %>%
+  filter(pass_down == 1)
+
+sis_pass_down_model <- lmer(IndividualEPA ~ (1|UpdatedPosition),
+                  data = sis_pass_down)
+
+summary(sis_pass_down_model)
+
+ranef(sis_pass_down_model)
+
+# Rushing downs
+
+sis_non_pass_down <- sis_df %>%
+  filter(pass_down == 0)
+
+sis_non_pass_down_model <- lmer(IndividualEPA ~ (1|UpdatedPosition),
+                            data = sis_non_pass_down)
+
+summary(sis_non_pass_down_model)
+
+ranef(sis_non_pass_down_model)
 
 
