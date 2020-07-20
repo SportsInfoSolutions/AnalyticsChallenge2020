@@ -240,4 +240,12 @@ summary(sis_non_pass_down_model)
 
 ranef(sis_non_pass_down_model)
 
+sis_df %>%
+  group_by(Name, DefensiveTeam, UpdatedPosition) %>%
+  summarize(mean_epa = mean(EPA),
+            snaps = n()) %>%
+  filter(snaps >= 100) -> defenders
+
+defenders %>%
+  ggplot(aes(x = ))
 
