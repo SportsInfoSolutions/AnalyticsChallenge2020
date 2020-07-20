@@ -1,0 +1,277 @@
+---
+title: "data_explore"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+Approaching this from a "how is the defense responding to the offense's exectution and actions" perspective
+
+going beyond what's here, estimate the % chance of gaining a first down when running to designed/undesigned different gaps to obtain a general sense of how first down probabilities fluctuate in different situations depending on what you want to stop
+
+```{r}
+data <- read.csv(url('https://raw.githubusercontent.com/SportsInfoSolutions/AnalyticsChallenge2020/master/Data/AnalyticsChallenge2020Data.csv'))
+
+```
+
+```{r}
+
+```
+
+
+```{r}
+library(tidyverse)
+library(reshape2)
+rushes <- data %>%
+  filter(EventType == 'rush')
+rushes$EPA <- as.numeric(rushes$EPA)
+Direction_Gap_ddf <- rushes %>%
+  group_by(RunDirection, UsedDesignedGap) %>%
+  summarise(avg_EPA = mean(EPA))
+direction_gap_lm <- lm(EPA ~ RunDirection, data = rushes)
+summary(direction_gap_lm)
+sum(rushes$RunDirection == 'Left D Gap' | rushes$RunDirection == 'Right D Gap')
+```
+
+Do NOT run up the middle. Is this because DTs are very good? Likely not.
+
+```{r}
+rushes <- rushes %>%
+  mutate(
+    TcklBy0Tech = if_else(TechniqueName == "0" & (SoloTackle == 1 | AssistedTackle == 1), 1, 0),
+    TcklBy1Tech = if_else(TechniqueName == "1" & (SoloTackle == 1 | AssistedTackle == 1), 1, 0),
+    TcklBy2Tech = if_else(TechniqueName == "2" & (SoloTackle == 1 | AssistedTackle == 1), 1, 0),
+    TcklBy2iTech = if_else(TechniqueName == "2i" & (SoloTackle == 1 | AssistedTackle == 1), 1, 0),
+    TcklBy3Tech = if_else(TechniqueName == "3" & (SoloTackle == 1 | AssistedTackle == 1), 1, 0),
+    TcklBy4Tech = if_else(TechniqueName == "4" & (SoloTackle == 1 | AssistedTackle == 1), 1, 0),
+    TcklBy4iTech = if_else(TechniqueName == "4i" & (SoloTackle == 1 | AssistedTackle == 1), 1, 0),
+    TcklBy5Tech = if_else(TechniqueName == "5" & (SoloTackle == 1 | AssistedTackle == 1), 1, 0),
+    TcklBy6Tech = if_else(TechniqueName == "6" & (SoloTackle == 1 | AssistedTackle == 1), 1, 0),
+    TcklBy7Tech = if_else(TechniqueName == "7" & (SoloTackle == 1 | AssistedTackle == 1), 1, 0),
+    TcklBy9Tech = if_else(TechniqueName == "9" & (SoloTackle == 1 | AssistedTackle == 1), 1, 0),
+    TcklByOutside = if_else(TechniqueName == "Outside" & (SoloTackle == 1 | AssistedTackle == 1), 1, 0),
+    TcklByOffBall = if_else(TechniqueName == "Off Ball" & (SoloTackle == 1 | AssistedTackle == 1), 1, 0)
+  )
+unique(rushes$RunDirection)
+```
+
+Given the statistically significant difference between middle and the others it will remain distinguished
+
+```{r}
+rushes <- rushes %>%
+  mutate(
+    ModRunDirection = case_when(
+      RunDirection == 'Middle' ~ 'Middle',
+      RunDirection == 'Right A Gap' ~ ' Left Inside',
+      RunDirection == 'Left A Gap' ~ 'Right Inside',
+      RunDirection == 'Right Off-Tackle B Gap' ~ 'Left Inside',
+      RunDirection == 'Left Off-Tackle B Gap' ~ 'Right Inside',
+      RunDirection == 'Right Off-Tackle C Gap' ~ 'Left Outside',
+      RunDirection == 'Left Off-Tackle C Gap' ~ 'Right Outside',
+      RunDirection == 'Right D Gap' ~ 'Left Outside',
+      RunDirection == 'Left D Gap' ~ 'Right Outside'
+    )
+  )
+```
+
+```{r}
+rushes <- rushes %>%
+  mutate(
+    GenSpot = case_when(
+      TechniqueName == '0' | TechniqueName == '1' | TechniqueName == '2i'  ~ 'Middle',
+      TechniqueName == '2' | TechniqueName == '3' | TechniqueName == '4i' | TechniqueName == '4' ~ 'Inside',
+      TechniqueName == '5' | TechniqueName == '6' | TechniqueName == '7' | TechniqueName == '9' | TechniqueName == 'Outside' ~ 'Outside',
+      TechniqueName == 'Off Ball' ~ 'Other'
+    )
+  )
+```
+
+```{r}
+rushes <- rushes %>%
+  mutate(
+    GenPositioning = case_when(
+      GenSpot == 'Inside' & SideOfBall == 'L' ~ 'Left Inside',
+      GenSpot == 'Inside' & SideOfBall == 'R' ~ 'Right Inside',
+      GenSpot == 'Outside' & SideOfBall == 'L' ~ 'Left Outside',
+      GenSpot == 'Outside' & SideOfBall == 'R' ~ 'Right Outside',
+      GenSpot == 'Other' ~ 'Off Ball',
+      GenSpot == 'Middle' ~ 'Middle'
+    )
+  )
+```
+
+```{r}
+rushes <- rushes %>%
+  mutate(
+    RanAt = if_else(GenPositioning == ModRunDirection, 1, 0),
+    RanAtInside = if_else(RanAt == 1 & (GenPositioning == 'Right Inside' | GenPositioning == 'Left Inside'), 1, 0),
+    RanAtOutside = if_else(RanAt == 1 & (GenPositioning == 'Right Outside' | GenPositioning == 'Left Outside'), 1, 0),
+    RanAtMiddle = if_else(RanAt == 1 & GenPositioning == 'Middle', 1, 0)
+  )
+rushesExecuted <- rushes %>%
+  filter(UsedDesignedGap == '1')
+rushesNotExecuted <- rushes %>%
+  filter(UsedDesignedGap == '0')
+```
+
+```{r}
+mod_dir_gap_lm <- lm(EPA ~ RanAtInside + RanAtOutside + RanAtMiddle, data = rushesExecuted)
+summary(mod_dir_gap_lm)
+```
+
+```{r}
+mod_dir_gap_lm_ne <- lm(EPA ~ RanAtInside + RanAtOutside + RanAtMiddle, data = rushesNotExecuted)
+summary(mod_dir_gap_lm_ne)
+```
+
+```{r}
+er_recap <- rushesExecuted %>%
+  group_by(RanAtInside, RanAtMiddle, RanAtOutside) %>%
+  summarise(avg_EPA = mean(EPA),
+            stdev_EPA = sd(EPA),
+            max_EPA = max(EPA),
+            min_EPA = min(EPA))
+```
+
+```{r}
+er_recap <- melt(er_recap, id.vars = list('RanAtInside', 'RanAtOutside', 'RanAtMiddle')) %>%
+  mutate(
+    Lane = case_when(
+      RanAtInside == 1 ~ "Inside",
+      RanAtOutside == 1 ~ "Outside",
+      RanAtMiddle == 1 ~ "Middle"
+    )
+  )
+er_recap <- na.omit(er_recap)
+rownames(er_recap) <- NULL
+er_recap.plot <- er_recap[1:6,] %>%
+  ggplot(aes(
+    x=Lane, y=value, col=variable, fill=variable
+  )) +
+  geom_col(alpha=.6) +
+  facet_grid(~ variable) +
+  theme_linedraw() +
+  scale_color_brewer(palette = 'Set1') +
+  scale_fill_brewer(palette = 'Set1') +
+  labs(title = 'Rushing EPA by Zone Rushed At', y='EPA') +
+  theme(legend.position = 'none',
+        plot.title = element_text(size = 16, hjust = 0.5, face = 'bold'),
+        plot.subtitle = element_text(size = 14, hjust = 0.5),
+        axis.title.x = element_blank())
+ggsave('er_recap.png', er_recap.plot, dpi=450)
+```
+
+THIS IS WHEN THE OFFENSE IS DOING WHAT IT WANTS TO DO. Meaning, the run gap was large enough or the play design generally worked enough that the runner ran to the gap the play was meant to go to. In a sport where the offense wants to dictate its game, this is a great example of where you're most suceptible when the opponent does what they want (which happened in the strong majority of cases 22,671 to 9,291)
+
+Here's what we see here: running to the middle is VERY much the least valuable place to run. Therefore, the interior of the d-line likely doesn't warrant substantial resources. Outside is the only way to gain a slightly positive EPA by running the ball, this makes setting the edge critically important and likely makes anyone beyond the 3-tech more valuable given the clearer need to slow down what is happening the further out the run takes place. This may simply be indication of....
+
+A) too many resources being dedicated to the interior d-line stopping the run
+B) running the ball up the middle is just generally bad and not efficient
+
+The margin between inside and outside remains slim, but it is there.
+
+By standard deviations, running outside is actually less risky than running inside! Further evidence of what is being stated above, but the safest option in to just keep it between the tackles.
+
+It may actually be downright important to ensure your edges are secure seeing as that is the only way a run game can actually hurt you on average.
+
+What positions does this specifically entail?
+
+There's a balance that must be struck between inside and out, given the slim margin. Remember to ask your self, how did you divide up the positions? How much more granular can you get between outside and in?
+
+If you go back to the top regression, you observe over 6k runs to the D Gaps which are both statistically significant to the highest level AND have the highest positive coefficients. Looks like you have the most important position narrowed down when it comes to running the ball.
+
+```{r}
+er_recap[7:12,] %>%
+  ggplot(aes(
+    x=Lane, y=value, col=variable, fill=variable
+  )) +
+  geom_col(alpha=.8) +
+  facet_grid(~ variable) +
+  theme_linedraw() +
+  scale_color_brewer(palette = 'Set1') +
+  scale_fill_brewer(palette = 'Set1')
+```
+
+Now onto non-designed run plays:
+
+```{r}
+ner_recap <- rushesNotExecuted %>%
+  group_by(RanAtInside, RanAtMiddle, RanAtOutside) %>%
+  summarise(avg_EPA = mean(EPA),
+            stdev_EPA = sd(EPA),
+            max_EPA = max(EPA),
+            min_EPA = min(EPA))
+```
+
+```{r}
+ner_recap <- melt(ner_recap, id.vars = list('RanAtInside', 'RanAtOutside', 'RanAtMiddle')) %>%
+  mutate(
+    Lane = case_when(
+      RanAtInside == 1 ~ "Inside",
+      RanAtOutside == 1 ~ "Outside",
+      RanAtMiddle == 1 ~ "Middle"
+    )
+  )
+ner_recap <- na.omit(ner_recap)
+rownames(ner_recap) <- NULL
+```
+
+```{r}
+ner_plot <- rbind.data.frame(ner_recap[1,], ner_recap[3:4,], ner_recap[6,]) %>%
+  ggplot(aes(
+    x=Lane, y=value, col=variable, fill=variable
+  )) +
+  geom_col(alpha=.8) +
+  facet_grid(~ variable) +
+  theme_linedraw() +
+  scale_color_brewer(palette = 'Set1') +
+  scale_fill_brewer(palette = 'Set1') +
+  labs(title = 'Rushing EPA by Zone Rushed At', y='EPA', subtitle = 'Not Rushed At Designed Gap') +
+  theme(legend.position = 'none',
+        plot.title = element_text(size = 16, hjust = 0.5, face = 'bold'),
+        plot.subtitle = element_text(size = 14, hjust = 0.5),
+        axis.title.x = element_blank())
+ner_plot
+ggsave('ner_plot.png', ner_plot, dpi = 450)
+```
+
+These become virtually indistinguishable, generally if the offense doesn't execute their run play its a negative EPA for them. 
+
+LESSON: do you want to stop the run? It looks like it'll stop itself unless your edges break.
+
+```{r}
+colnames(rushes)
+```
+
+```{r}
+rushesExecuted <- rushesExecuted %>%
+  mutate(
+    TcklByMiddle = if_else(TcklBy0Tech == 1 | TcklBy1Tech == 1 | TcklBy2iTech == 1, 1, 0),
+    TckByInside = if_else(TcklBy2Tech == 1 | TcklBy3Tech == 1 | TcklBy4Tech == 1 | TcklBy4iTech == 1, 1, 0),
+    TcklByOutside_gen = if_else(TcklBy5Tech == 1 | TcklBy6Tech == 1 | TcklBy7Tech == 1 | TcklBy9Tech == 1 | TcklByOutside == 1, 1, 0)
+  )
+```
+
+
+```{r}
+rushes.model <- glm(FirstDown ~ TcklByMiddle + TckByInside + TcklByOutside_gen + TcklByOffBall + ToGo, data = rushesExecuted, family = 'binomial')
+summary(rushes.model)
+```
+
+```{r}
+# TcklByMiddle <- c(1,0,0,0,1,0,0,0)
+# TckByInside <- c(0,1,0,0,0,1,0,0)
+# TcklByOutside_gen <- c(0,0,1,0,0,0,1,0)
+# TcklByOffBall <- c(0,0,0,1,0,0,0,1)
+# ToGo <- c(10,10,10,10,4,4,4,4)
+# test_rush_df <- cbind.data.frame(TcklByInside, TcklByMiddle, TcklByOutside_gen, TcklByOffBall, ToGo)
+# rush_pred <- round(predict(rushes.model, test_rush_df, type = 'response'),4) * 100
+# cbind.data.frame(test_rush_df, rush_pred)
+```
+
+You'll want to be at your best where the offense has the most potential to do something dangerous.
+
