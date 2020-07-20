@@ -45,17 +45,20 @@ pbp_clean <- pbp %>%
                                        if_else(tech_side %in% c("L6", "L9", "LOLB"), 1, 0),
                                      RunDirection == "Left D Gap" ~ 
                                        if_else(tech_side %in% c("R6", "R9", "ROLB"), 1, 0)),
-         run_force = if_else(UsedDesignedGap == 0 & in_designed_gap == 1, 1, 0)
+         gap_force = if_else(UsedDesignedGap == 0 & in_designed_gap == 1, 1, 0),
          success = if_else(EPA > 0, 1, 0),
          position_group = case_when(TechniqueName %in% c("7", "Outside", "9", "6", "5") ~ "Edge",
                                     TechniqueName == "Off Ball" ~ TechniqueName,
-                                    TRUE ~ "iDL"))
+                                    TRUE ~ "iDL"),
+         dl_tackle = if_else((SoloTackle == 1 | AssistedTackle == 1) & 
+                               position_group %in% c("Edge", "iDL") & 
+                               (SackOnPlay == 0 | is.na(SackOnPlay)), 1, 0))
 
-pbp_clean %>%
-  filter(event_type == "designed run" & UsedDesignedGap == 0) %>%
-  mutate(TimeLeft = glue("{floor(TimeLeft/60)}:{TimeLeft - floor(TimeLeft/60)*60}")) %>%
-  select(Week, OffensiveTeam, Quarter, TimeLeft, Down, ToGo, RunDirection) %>%
-  distinct()
+# pbp_clean %>%
+#   filter(event_type == "designed run" & UsedDesignedGap == 0) %>%
+#   mutate(TimeLeft = glue("{floor(TimeLeft/60)}:{TimeLeft - floor(TimeLeft/60)*60}")) %>%
+#   select(Week, OffensiveTeam, Quarter, TimeLeft, Down, ToGo, RunDirection) %>%
+#   distinct()
 
 # # Look at pressure rates from edge players vs interior players
 DEDT <- pbp_clean %>% 
@@ -97,51 +100,6 @@ DEDT %>%
                                      margin = margin(b = 16, unit = "pt")),
         plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), "cm"))
 
-# How pressure from the edge vs interior affects the play
-Pressures <- pbp_clean %>% 
-  filter(event_type == "dropback") %>%
-  mutate(edge_pressure = if_else(position_group == "Edge" & Pressure == 1, 1, 0),
-         idl_pressure = if_else(position_group == "iDL" & Pressure == 1, 1, 0)) %>% 
-  group_by(GameID, EventID) %>%
-  summarise(edge_p = max(edge_pressure),
-            idl_p = max(idl_pressure),
-            Complete = paste(unique(Completion), collapse = "-"),
-            OffensiveYardage = mean(OffensiveYardage),
-            EPA = mean(EPA), 
-            success = mean(success)) %>%
-  mutate(pressure_type = case_when(edge_p == 1 & idl_p == 1 ~ "Both",
-                                   edge_p == 1 ~ "Edge",
-                                   idl_p == 1 ~ "iDL",
-                                   TRUE ~ "No Pressure"))
-
-Pressures %>%
-  filter(pressure_type != "No Pressure") %>%
-  ggplot(aes(x = EPA, fill = pressure_type)) +
-  geom_density(alpha = 0.5) +
-  scale_fill_manual(values = c("red", "blue", 
-                               #"green", 
-                               "yellow")) +
-  scale_y_continuous(expand = c(0, 0)) +
-  scale_x_continuous(limits = c(-5, 5), expand = c(0, 0)) +
-  labs(x = "EPA",
-       y = "Density",
-       title = "Distribution of EPA by Pressure Type",
-       fill = "Pressure Type") +
-  theme_bw() + 
-  theme(legend.position = c(0.915, 0.885),
-        axis.title.x = element_text(size = 14),
-        axis.title.y = element_blank(),
-        axis.text.x = element_text(size = 12, margin = margin(5, 0, 10, 0)),
-        axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        plot.title = element_text(size = 18, hjust = 0.5, face = "bold",
-                                  margin = margin(b = 8, unit = "pt")),
-        plot.subtitle = element_text(size = 14, hjust = 0.5, face = "italic",
-                                     margin = margin(b = 16, unit = "pt")),
-        plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), "cm"))
-
-
-
 #Look at pressure rates by technique - league wide
 
 techs <- pbp_clean %>% 
@@ -177,10 +135,70 @@ techs %>%
                                      margin = margin(b = 16, unit = "pt")),
         plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), "cm"))
 
-#Look at whether the presence of 0/1 tech defenders affect the outcome of inside runs
 
-#Create column with DL alignments for each play vs run 
+# Create Dataframe of Pass plays - Scrambles
+dfpass <- pbp_clean %>% 
+  filter(event_type == "dropback" & scramble == 0) %>%
+  mutate(edge_pressure = if_else(position_group == "Edge" & Pressure == 1, 1, 0),
+         idl_pressure = if_else(position_group == "iDL" & Pressure == 1, 1, 0)) %>% 
+  group_by(GameID, EventID) %>%
+  summarise(Quarter = mean(Quarter), 
+            TimeLeft = mean(TimeLeft),
+            Down = mean(Down), 
+            ToGo = mean(ToGo), 
+            StartYard = mean(yardline_100),
+            Completion = mean(Completion),
+            OffensiveYardage = mean(OffensiveYardage), 
+            EPA = mean(EPA), 
+            success = mean(success),
+            Touchdown = mean(Touchdown),
+            PressureOnPlay = mean(PressureOnPlay),
+            PassBreakupOnPlay = mean(PassBreakupOnPlay),
+            SackOnPlay = mean(SackOnPlay),
+            dl_tackle = max(dl_tackle),
+            edge_p = max(edge_pressure),
+            idl_p = max(idl_pressure)) %>%
+  mutate(pressure_type = case_when(edge_p == 1 & idl_p == 1 ~ "Both",
+                                   edge_p == 1 ~ "Edge",
+                                   idl_p == 1 ~ "iDL",
+                                   edge_p == 0 & idl_p == 0 & PressureOnPlay == 1 ~ "Other",
+                                   TRUE ~ "No Pressure")) %>%
+  select(-edge_p, -idl_p) %>% na.omit()
 
+#Look at EPA distributions by Pressure Type
+dfpass %>% filter(pressure_type != "Other") %>% 
+  ggplot(aes(x = EPA, fill = pressure_type)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("red", "blue", 
+                               "green", 
+                               "yellow")) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_continuous(limits = c(-5, 5), expand = c(0, 0)) +
+  labs(x = "EPA",
+       y = "Density",
+       title = "Distribution of EPA by Pressure Type",
+       fill = "Pressure Type") +
+  theme_bw() + 
+  theme(legend.position = c(0.915, 0.885),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_blank(),
+        axis.text.x = element_text(size = 12, margin = margin(5, 0, 10, 0)),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        plot.title = element_text(size = 18, hjust = 0.5, face = "bold",
+                                  margin = margin(b = 8, unit = "pt")),
+        plot.subtitle = element_text(size = 14, hjust = 0.5, face = "italic",
+                                     margin = margin(b = 16, unit = "pt")),
+        plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), "cm")) + facet_wrap(~pressure_type) 
+
+#Kolmogorov-Smirnov Test, cannot reject null hyptohesis that two samples come from the same distribution
+ks.test(Pressures$EPA[Pressures$pressure_type == "Edge"], Pressures$EPA[Pressures$pressure_type == "iDL"])
+
+#Independent Sammples T-Test, cannot reject null hypothesis that the two sample means are equal
+t.test(Pressures$EPA[Pressures$pressure_type == "Edge"], Pressures$EPA[Pressures$pressure_type == "iDL"])
+
+
+#Create dataframe of run plays
 dfrun <- pbp_clean %>% 
   filter(event_type == "designed run") %>% 
   group_by(GameID, EventID) %>%
@@ -193,18 +211,40 @@ dfrun <- pbp_clean %>%
             OffensiveYardage = mean(OffensiveYardage), 
             EPA = mean(EPA), 
             success = mean(success),
+            Touchdown = mean(Touchdown),
             RunDirection= paste(unique(RunDirection), collapse = '-'),
             UsedDesignedGap = paste(unique(UsedDesignedGap), collapse = '-'),
             in_designed_gap = paste(unique(in_designed_gap), collapse = '-'),
-            PlayDesc = paste(unique(PlayDesc), collapse = '-'),
-            DL = paste(unique(tech_side), collapse = '-'))
+            gap_force = max(gap_force),
+            dl_tackle = max(dl_tackle),
+            PlayDesc = paste(unique(PlayDesc), collapse = '-'))
+
+
+#Look at whether gap forces have a significant effect on run plays
+dfrun %>% na.omit() %>% ggplot(aes(x = as.factor(gap_force), y = EPA)) + 
+  geom_boxplot() 
+
+ks.test(dfrun$EPA[dfrun$gap_force ==1], dfrun$EPA[dfrun$gap_force == 0])
+
+t.test(dfrun$EPA[dfrun$gap_force ==1], dfrun$EPA[dfrun$gap_force == 0])
+#We can conclude gap forces have no significant effect on the outcome of run plays
+
+#Look at whether DL tackles have a significant effect on run plays with tackles by other position groups
+# or runner out of bounds
+dfrun %>% filter(Touchdown == 0) %>% na.omit() %>% ggplot(aes(x = as.factor(dl_tackle), y = EPA)) + 
+  geom_boxplot() 
+
+ks.test(dfrun$EPA[dfrun$dl_tackle ==1], dfrun$EPA[dfrun$dl_tackle == 0 & dfrun$Touchdown == 0])
+
+t.test(dfrun$EPA[dfrun$dl_tackle ==1], dfrun$EPA[dfrun$dl_tackle == 0 & dfrun$Touchdown == 0])
+
+#We can conclude that a DL tackle has a significant effect on the outcome of run plays
 
 #Compare distribution of EPA and Offensive Yards Gained and success rate
 #of plays with a defender in the run gap and plays without
 
 dfrun %>%
-  filter(UsedDesignedGap == 0) %>%
-  ggplot(aes(x = EPA, fill = in_designed_gap)) + 
+  ggplot(aes(x = EPA, fill = as.factor(gap_force))) + 
   geom_density(alpha = 0.5) +
   scale_fill_manual(values = c("red","blue"))
 
@@ -214,74 +254,98 @@ dfrun %>%
   scale_fill_manual(values = c("red","blue"))
 
 dfrun %>%
-  ggplot(aes(x = EPA, fill = UsedDesignedGap)) + 
+  ggplot(aes(x = EPA, fill = as.factor(dl_tackle))) + 
   geom_density(alpha = 0.5) +
   scale_fill_manual(values = c("red","blue"))
 
-# Using the Designed Gap appears to lead to more success for the offense
-dfrun %>%
-  group_by(UsedDesignedGap) %>%
-  summarize(runs = n(),
-            epa = mean(EPA, na.rm = T),
-            sr = mean(success))
 
-# Having a defender in/next to the designed gap appears to prevent more big plays as measured by EPA
-dfrun %>%
-  group_by(in_designed_gap) %>%
-  summarize(runs = n(),
-            epa = mean(EPA, na.rm = T),
-            sr = mean(success))
 
 # The most successful run type is when the offense targets an unoccupied gap and is able to run
-# through that gap, as the only run type that gains positive EPA on average
+# through that gap
 dfrun %>%
   group_by(in_designed_gap, UsedDesignedGap) %>%
   summarize(runs = n(),
             epa = mean(EPA, na.rm = T),
             sr = mean(success))
 
-# We can conclude a defensive lineman's ability to force a run away from a designed gap that they
-# occupy has a positive effect of ~0.05 epa per run
-dfrun %>%
-  filter(in_designed_gap == 1) %>%
-  group_by(UsedDesignedGap) %>%
-  summarize(runs = n(),
-            epa = mean(EPA, na.rm = T),
-            sr = mean(success))
-
-dfrun %>%
-  filter(in_designed_gap == 1) %>%
-  ggplot(aes(x = success)) +
-  geom_bar(aes(y = (..count..)/sum(..count..)), fill = "steelblue") + 
-  theme_minimal() +
-  scale_x_discrete(limits = c(0,1), labels = c(0, 1)) + 
-  scale_y_continuous(breaks = seq(0.05, 0.60, 0.05))
 
 
-### Look at positional leaderboards for pressure rate and forcing runs away from gap
-player_leaderboard <- pbp_clean %>%
-  group_by(Name, PlayerId) %>%
-  summarize(all_snaps = n(),
-            edge_snaps = sum(if_else(position_group == "Edge", 1, 0)),
-            edge_pct = edge_snaps/all_snaps,
-            idl_snaps = sum(if_else(position_group == "iDL", 1, 0)),
-            idl_pct = idl_snaps/all_snaps,
-            run_snaps = sum(if_else(event_type == "designed run", 1, 0)),
-            pass_snaps = all_snaps - run_snaps,
-            pass_rushes = sum(if_else(IsRushing == 1, 1, 0), na.rm = T),
-            pressures = sum(Pressure, na.rm = T),
-            p_rate = pressures/pass_rushes,
-            runs_at_player = sum(in_designed_gap, na.rm = T),
-            gap_forces = sum(if_else(in_designed_gap == 1 & 
-                                       UsedDesignedGap == 0, 1, 0), na.rm = T),
-            gap_force_rate = gap_forces/runs_at_player) %>%
-  mutate(position = case_when(edge_pct >= 0.5 ~ "Edge",
-                              idl_pct >= 0.5 ~ "iDL",
-                              TRUE ~ "Other")) %>%
-  arrange(desc(all_snaps))
+#Fit a linear model to determine the effects of pressures, pass breakups on pass plays
+#Control for TDs + Downs + Yardline
+
+passmodel <- lm(EPA ~ PassBreakupOnPlay + PressureOnPlay  + Touchdown + as.factor(Down) + StartYard +
+                  ToGo, 
+                data = dfpass)
+
+PressureValue <- as.numeric(passmodel$coefficients["PressureOnPlay"]) 
+
+PbuValue <- as.numeric(passmodel$coefficients["PassBreakupOnPlay"]) 
 
 
-dfrun %>% na.omit()  %>%
-  ggplot(aes(x = in_designed_gap, y = EPA, fill = UsedDesignedGap)) + geom_boxplot() 
+#Fit a linear model to determine the effects of DL tackles on run plays
+#Control for TDs + Downs + Yardline
 
-boxplot(EPA ~ pressure_type, data = Pressures)
+runmodel <- lm(EPA ~ dl_tackle + Touchdown + as.facor(Down) + StartYard + ToGo, data = dfrun)
+
+
+TackleValue <- as.numeric(runmodel$coefficients["dl_tackle"])
+
+
+
+pbp_clean$dEPA <- 0
+for (i in 1:nrow(pbp_clean)){
+  if(pbp_clean$event_type[i] == "dropback" & pbp_clean$scramble[i] == 0) {
+    pbp_clean$dEPA[i] <- pbp_clean$Pressure[i] * PressureValue + pbp_clean$PassBreakup[i] * PbuValue
+  } else if (pbp_clean$event_type[i] == "designed run") {
+    pbp_clean$dEPA[i] <- pbp_clean$SoloTackle[i] * TackleValue + (pbp_clean$AssistedTackle[i] * TackleValue)/2
+  } else {
+    pbp_clean$dEPA[i] <- 0
+  }
+}
+
+pbp_clean$dEPA <- pbp_clean$dEPA * -1
+
+TechValues <- pbp_clean %>% 
+  group_by(TechniqueName) %>% 
+  summarise(Snaps = n(), 
+            dEPA = sum(dEPA),
+            dEPA100 = (dEPA/Snaps)*100) %>% 
+  ungroup()
+
+
+TalentDistributions <- pbp_clean %>% 
+  group_by(TechniqueName, Name, PlayerId) %>% 
+  summarise(Snaps = n(), 
+            dEPA = sum(dEPA),
+            dEPA100 = (dEPA/Snaps)*100) %>% 
+  ungroup() %>% filter(Snaps >= 20)
+
+
+TalentDistributions %>%
+  ggplot(aes(x = dEPA100, fill = TechniqueName)) + geom_density(alpha = 0.5) +
+  facet_wrap(~TechniqueName)
+
+
+TalentDistributions %>%
+  ggplot(aes(x = dEPA, fill = TechniqueName)) + geom_density(alpha = 0.5) +
+  facet_wrap(~TechniqueName)
+
+
+TechValues %>%
+  filter(TechniqueName != "Off Ball") %>%
+  ggplot(aes(x = TechniqueName, y = dEPA100)) +
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  scale_x_discrete(limits = c("0","1","2","2i","3","4i","4","5","6","7","9","Outside")) +
+  #scale_x_continuous(limits = c(-5, 5)) +
+  labs(x = "Technique",
+       y = "dEPA/100",
+       title = "dEPA per 100 Snaps by DL Technique") +
+  theme_bw() + 
+  theme(axis.title = element_text(size = 14),
+        axis.text.x = element_text(size = 11, margin = margin(5, 0, 10, 0)),
+        axis.text.y = element_text(size = 12, margin = margin(0, 5, 0, 10)),
+        plot.title = element_text(size = 18, hjust = 0.5, face = "bold",
+                                  margin = margin(b = 8, unit = "pt")),
+        plot.subtitle = element_text(size = 14, hjust = 0.5, face = "italic",
+                                     margin = margin(b = 16, unit = "pt")),
+        plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), "cm"))
