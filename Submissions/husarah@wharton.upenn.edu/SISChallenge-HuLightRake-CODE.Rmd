@@ -1,0 +1,217 @@
+---
+title: "AnalyticsChallenge2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggthemes)
+```
+
+
+```{r cars}
+football <- read_csv("~/Downloads/AnalyticsChallenge2020Data.csv")
+data <- football %>%
+  filter(RosterPosition %in% c("DE", "DT", "LB", "CB", "S")) %>%
+  mutate(YardsToGo = ifelse(SideOfField == "Own", 100-StartYard, StartYard)) %>%
+  mutate(uTimeLeft = 3600-(Quarter*900)+TimeLeft) %>%
+  mutate(uTechniqueName = case_when(TechniqueName == "0" ~ 0,
+                                          SideOfBall == "R" & TechniqueName == "1" ~ 1, 
+                                          SideOfBall == "L" & TechniqueName == "1" ~ -1,
+                                          SideOfBall == "R" & TechniqueName == "2" ~ 2,
+                                          SideOfBall == "L" & TechniqueName == "2" ~ -2,
+                                          SideOfBall == "R" & TechniqueName == "2i" ~ 2.5,
+                                          SideOfBall == "L" & TechniqueName == "2i" ~ -2.5,
+                                          SideOfBall == "R" & TechniqueName == "3" ~ 3,
+                                          SideOfBall == "L" & TechniqueName == "3" ~ -3,
+                                          SideOfBall == "R" & TechniqueName == "4" ~ 4,
+                                          SideOfBall == "L" & TechniqueName == "4i" ~ -4.5,
+                                          SideOfBall == "R" & TechniqueName == "4" ~ 4,
+                                          SideOfBall == "L" & TechniqueName == "4" ~ -4,
+                                          SideOfBall == "R" & TechniqueName == "5" ~ 5,
+                                          SideOfBall == "L" & TechniqueName == "5" ~ -5,
+                                          SideOfBall == "R" & TechniqueName == "6" ~ 6,
+                                          SideOfBall == "L" & TechniqueName == "6" ~ -6,
+                                          SideOfBall == "R" & TechniqueName == "7" ~ 7,
+                                          SideOfBall == "L" & TechniqueName == "7" ~ -7,
+                                          SideOfBall == "R" & (TechniqueName == "9" | TechniqueName == "Outside") ~ 9,
+                                          SideOfBall == "L" & (TechniqueName == "9" | TechniqueName == "Outside") ~ -9)) %>%
+  select(Quarter, uTimeLeft, Down, ToGo, YardsToGo, EventType, RunDirection, FumbleByPasser,
+         FumbleByRusher,EPA, PlayDesc, Name, RosterPosition, OnFieldPosition,
+         uTechniqueName, IsRushing, SoloTackle, AssistedTackle, Pressure, SoloSack,
+         AssistedSack, PassBreakup, Interception, ForcedFumble, RecoveredFumble)
+
+
+runs <- data %>%
+  filter(EventType %in% c("rush", "challenge rush")) %>%
+  mutate(uRunDirection = case_when(RunDirection == "Middle" ~ 0,
+                                   RunDirection == "Left A Gap" ~ -1,
+                                   RunDirection == "Left Off-Tackle B Gap" ~ -3,
+                                   RunDirection == "Left Off-Tackle C Gap" ~ -5,
+                                   RunDirection == "Left D Gap" ~ -7,
+                                   RunDirection == "Right A Gap" ~ 1,
+                                   RunDirection == "Right Off-Tackle B Gap" ~ 3,
+                                   RunDirection == "Right Off-Tackle C Gap" ~ 5,
+                                   RunDirection == "Right D Gap" ~ 7)) %>%
+  filter(uTechniqueName != "Off Ball") %>%
+  mutate(DistanceToRush = uTechniqueName - uRunDirection) %>%
+  mutate(CloseToRush = ifelse(abs(DistanceToRush) < 2, 1, 0))
+
+pass <- data %>%
+  filter(EventType %in% c("pass", "challenge pass")) %>%
+  na.omit()
+
+ppp <- data %>%
+  group_by(PlayDesc) %>%
+  summarize(n.players = n_distinct(Name), 
+            YardsToGo = mean(YardsToGo),
+            Down = mean(Down),
+            ToGo = mean(ToGo))
+
+```
+
+```{r}
+rushpassEPA <- data %>%
+  na.omit() %>%
+  filter(EventType %in% c("rush", "pass")) %>%
+  group_by(EventType) %>%
+  summarize(EPA = mean(EPA)) 
+
+ggplot(rushpassEPA) +
+  geom_bar(aes(x = EventType, y = EPA), stat = "identity", fill = "darkblue") +
+  labs(x = '', y = "EPA", title = "Average EPA in Pass and Rush Plays") +
+  theme_minimal() 
+
+
+fitPass <- lm(EPA ~ FumbleByPasser + SoloTackle + Pressure + SoloSack + AssistedSack + PassBreakup + Interception, pass) 
+#took out assistTackle b/c p value was not significant
+
+passFormula <- as.formula(
+  paste0("y ~ ", round(coefficients(fitPass)[1],2), "", 
+         paste(sprintf(" %+.2f*%s ", 
+                       coefficients(fitPass)[-1],  
+                       names(coefficients(fitPass)[-1])), 
+               collapse="")
+  )
+)
+
+passNew <- pass %>%
+  mutate(regression = fitPass$fitted.values) %>%
+  group_by(RosterPosition) %>%
+  summarize(value = mean(regression), n = n()) 
+
+pass <- pass %>%
+  mutate(regression = fitPass$fitted.values)
+
+passNew %>%
+  ggplot() + 
+  geom_bar(aes(x = RosterPosition, y = - (value * n / sum(n))), stat = "identity", fill = "darkblue") +
+  theme_minimal() +
+  labs(x = "", y = "Value", title = "Relative Value Across Positions on Passes")
+
+
+# For this I had to edit the uTechniqueName to only have doubles//ex. 4i ~ 4.5
+runs <- runs %>%
+  filter(uTechniqueName != "Off Ball") %>%
+  mutate(DistanceToRush = uTechniqueName - uRunDirection) %>%
+  mutate(CloseToRush = ifelse(abs(DistanceToRush) < 2, 1, 0))
+
+
+runsdata <- runs %>%
+  select(uTimeLeft, YardsToGo, EPA, Name, RosterPosition, OnFieldPosition, 
+         uTechniqueName, uRunDirection, DistanceToRush, CloseToRush, IsRushing, Pressure,
+         SoloTackle, AssistedTackle, ForcedFumble, RecoveredFumble)
+
+
+fitRush <- lm(EPA ~ SoloTackle + AssistedTackle + ForcedFumble + RecoveredFumble + CloseToRush +  IsRushing + Pressure,
+              runsdata)
+summary(fitRush)
+
+runFormula <- as.formula(
+  paste0("y ~ ", round(coefficients(fitRush)[1],2), "", 
+         paste(sprintf(" %+.2f*%s ", 
+                       coefficients(fitRush)[-1],  
+                       names(coefficients(fitRush)[-1])), 
+               collapse=""))
+)
+
+rushByPos <- runsdata %>%
+  mutate(regression = fitRush$fitted.values) %>%
+  group_by(RosterPosition) %>%
+  summarize(vOV = sum(regression), vPP = mean(regression), obs = n())
+
+runs <- runs %>%
+  mutate(regression = fitRush$fitted.values) 
+
+rushByPos %>%
+  ggplot() +
+  geom_bar(aes(x = RosterPosition, y = - vPP), stat = "identity", fill = 'darkblue') +
+  theme_minimal() +
+  labs(x = "", y = "Value", title = "Relative Value Across Positions on Runs")
+
+
+rushPlayers <- runsdata %>%
+  mutate(regression = fitRush$fitted.values) %>%
+  group_by(Name) %>%
+  summarize(pos = names(sort(table(RosterPosition), T)[1]), vPP = mean(regression), obs = n(), vOV = sum(regression)) %>%
+  filter(obs > 25) %>%
+  arrange(vOV)
+
+ggplot(rushPlayers) +
+  geom_point(aes(vPP, vOV, color = obs))
+
+
+
+
+
+
+totalPassPlays <- n_distinct(pass$PlayDesc)
+totalRunPlays <- n_distinct(runs$PlayDesc)
+
+
+uValues <- passNew %>%
+  mutate(uValues = ((totalPassPlays * value * n / sum(n)) + (totalRunPlays * rushByPos$vPP * rushByPos$obs / sum(rushByPos$obs))) / (totalPassPlays + totalRunPlays))
+
+
+uValues %>%
+  ggplot() + 
+  geom_bar(aes(x = RosterPosition, y = - uValues), stat = "identity", fill = 'darkblue') +
+  theme_minimal() +
+  labs(x = "", y = "Value", title = "Weighted Values Across Positions for All Plays ") +
+  coord_flip()
+
+
+
+
+pass4 <- pass %>%
+  select(YardsToGo, RosterPosition, regression)
+rush4 <- runs %>%
+  select(YardsToGo, RosterPosition, regression)
+fthd <- rbind(pass4, rush4) %>%
+  filter(YardsToGo < 21) %>%
+  group_by(RosterPosition) %>%
+  summarise(vOV = sum(regression), vPP = mean(regression), n = n())
+ggplot(fthd) +
+  geom_bar(aes(RosterPosition, abs(vPP)), fill = 'darkblue', stat = "identity") +
+  xlab("") +
+  ylab("Value Per Play") +
+  labs(title = "Value Across Positions in the Red Zone")+
+  theme_minimal()
+
+pass4th <- pass %>%
+  select(Down, RosterPosition, regression)
+rush4th <- runs %>%
+  select(Down, RosterPosition, regression)
+fthd.fourth <- rbind(pass4th, rush4th) %>%
+  filter(Down == 4) %>%
+  group_by(RosterPosition) %>%
+  summarise(vOV = sum(regression), vPP = mean(regression), n = n())
+ggplot(fthd.fourth) +
+  geom_bar(aes(RosterPosition, abs(vPP)), fill = 'darkblue', stat = "identity") +
+  xlab("") +
+  ylab("Value Per Play") +
+  theme_minimal()
+
+
+```
